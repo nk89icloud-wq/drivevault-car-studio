@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080c10">
+  <meta name="description" content="DriveVault — көліктерді таңдау, салыстыру және жарыс симуляторы">
+  <title>DriveVault — Car Studio</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="game.css?v=6">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="DriveVault бас беті"><span class="brand-mark">DV</span><span>DRIVE<span>VAULT</span></span></a>
+    <nav aria-label="Негізгі мәзір"><a href="#calendar">Күнтізбе</a><a href="#studio">Студия</a><a href="#catalog">Каталог</a><a href="#history">Тарих</a></nav>
+    <button class="icon-button on" id="soundToggle" aria-label="Дыбысты ауыстыру">♪</button>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-shade"></div>
+      <div class="hero-content">
+        <p class="eyebrow"><span></span> Интерактивті автостудия</p>
+        <h1>Арманыңдағы көлікті<br><em>салыстырып көр.</em></h1>
+        <p class="hero-copy">72 танымал модель. Нақты сипаттамаларға жақын параметрлер. Бір сәтте таңдап, 400 метрлік жарыста сына.</p>
+        <div class="hero-actions"><a class="button primary" href="#studio">Көлік таңдау <b>→</b></a><a class="button ghost" href="#catalog">Барлық модельдер</a></div>
+        <div class="hero-stats"><div><strong>72</strong><span>модель</span></div><div><strong>18</strong><span>марка</span></div><div><strong>400 м</strong><span>симуляция</span></div></div>
+      </div>
+      <div class="scroll-hint">ТӨМЕН <span>↓</span></div>
+    </section>
+
+    <section class="section" id="calendar">
+      <div class="section-heading"><div><p class="eyebrow"><span></span> Жоспар</p><h2>Видео күнтізбесі</h2></div><p>Күнді бас — жұп өзі таңдалады. Жазылған видео сары, YouTube-қа жүктелген жасыл болады.</p></div>
+      <div class="cal-bar"><label>Бастау күні<input type="date" id="calStart"></label><button class="button primary compact" id="calNext" type="button">▶ КЕЛЕСІ ЖОСПАРЛАНҒАН ЖҰП</button><button class="button ghost compact" id="calReset" type="button">БЕЛГІЛЕРДІ ТАЗАЛАУ</button><span class="cal-legend"><i class="plan"></i>жоспар <i class="rec"></i>жазылды <i class="up"></i>жүктелді</span></div>
+      <p class="cal-stats" id="calStats"></p>
+      <div class="cal-grid" id="calendarGrid"></div>
+    </section>
+
+    <section class="section studio" id="studio">
+      <div class="section-heading"><div><p class="eyebrow"><span></span> Гараж</p><h2>Екі көлікті таңда</h2></div><p>Сипаттамаларын салыстыр, сосын тректе сынап көр.</p></div>
+      <div class="selectors">
+        <article class="car-panel" data-side="A">
+          <div class="panel-top"><span class="slot blue">A</span><span>БІРІНШІ КӨЛІК</span><button class="small-link open-catalog" data-target="A">Каталогтан таңдау</button></div>
+          <div class="select-row"><label>Марка<select id="makeA"></select></label><label>Модель<select id="modelA"></select></label><label>Жылы<select id="yearA"></select></label></div>
+          <div class="car-visual blue-car" aria-hidden="true"><div class="car-glow"></div><div class="car-shape"><i class="window"></i><i class="wheel w1"></i><i class="wheel w2"></i><i class="light"></i></div><img class="car-photo" id="photoA" alt="" hidden><div class="photo-state" id="stateA"></div><strong id="visualA"></strong><a class="photo-credit" id="creditA" target="_blank" rel="noopener" hidden></a></div>
+          <div class="spec-grid" id="specA"></div>
+        </article>
+        <button class="swap" id="swap" aria-label="Көліктердің орнын ауыстыру">⇄</button>
+        <article class="car-panel" data-side="B">
+          <div class="panel-top"><span class="slot amber">B</span><span>ЕКІНШІ КӨЛІК</span><button class="small-link open-catalog" data-target="B">Каталогтан таңдау</button></div>
+          <div class="select-row"><label>Марка<select id="makeB"></select></label><label>Модель<select id="modelB"></select></label><label>Жылы<select id="yearB"></select></label></div>
+          <div class="car-visual amber-car" aria-hidden="true"><div class="car-glow"></div><div class="car-shape"><i class="window"></i><i class="wheel w1"></i><i class="wheel w2"></i><i class="light"></i></div><img class="car-photo" id="photoB" alt="" hidden><div class="photo-state" id="stateB"></div><strong id="visualB"></strong><a class="photo-credit" id="creditB" target="_blank" rel="noopener" hidden></a></div>
+          <div class="spec-grid" id="specB"></div>
+        </article>
+      </div>
+
+      <div class="game-shell" id="gameShell">
+        <div class="game-toolbar">
+          <div class="mode-tabs" role="tablist"><button class="mode-tab active" id="raceMode" role="tab">🏁 ЖАРЫС</button><button class="mode-tab" id="crashMode" role="tab">💥 КРАШ-ТЕСТ</button></div>
+          <div class="video-tools"><span class="rec-indicator" id="recIndicator" hidden><i></i>REC</span><button id="gameHudToggle" title="Интерфейсті жасыру/көрсету (H)">🎥 HUD</button><button id="gameFullscreen" title="Толық экран (F)">⛶ FULL</button><div class="game-status"><i></i><span id="gameStatus">ДАЙЫН</span></div></div>
+        </div>
+        <div class="race-options" id="raceOptions">
+          <label>Қашықтық<select id="raceDistance"><option value="201.17">201 м · ⅛ миля</option><option value="402.34" selected>402 м · ¼ миля</option><option value="804.67">805 м · ½ миля</option><option value="1000">1000 м</option></select></label>
+          <label>Видео пішімі<select id="recFormat"><option value="short1080" selected>YouTube Shorts · 9:16 · 1080×1920</option><option value="short720">Shorts · 9:16 · 720×1280 (жеңіл)</option><option value="wide1080">Кең · 16:9 · 1920×1080</option></select></label>
+          <label>Тіл<select id="raceLang"><option value="kk" selected>Қазақша</option><option value="ru">Русский</option><option value="en">English</option></select></label>
+        </div>
+        <div class="game-stage" id="gameStage">
+          <canvas id="gameCanvas" aria-label="DriveVault жарыс симуляторы"></canvas>
+          <div class="game-countdown" id="gameCountdown"></div>
+          <div class="game-message" id="gameMessage"></div>
+          <div class="crash-panel" id="crashPanel" hidden>
+            <label>Соқтығысу жылдамдығы <strong><span id="crashSpeedValue">80</span> км/сағ</strong><input id="crashSpeed" type="range" min="30" max="200" value="80"></label>
+            <label>Кедергі түрі<select id="barrierType"><option value="wall">Бетон қабырға</option><option value="offset">40% offset тосқауыл</option><option value="pole">Болат бағана</option></select></label>
+          </div>
+        </div>
+        <div class="game-footer">
+          <div class="control-help" id="controlHelp"><span>⚙ ШЫНАЙЫ ФИЗИКА: қуат · салмақ · тартылу · аэродинамика</span><span>🚦 3 · 2 · 1 · GO</span></div>
+          <div class="race-results" id="gameResults" aria-live="polite"></div>
+          <div class="race-actions"><button class="button primary" id="gameStart">ЖАРЫСТЫ БАСТАУ <b>▶</b></button><button class="button record" id="gameRecord">🎬 ЖАРЫС + ВИДЕО ЖАЗУ</button><button class="button ghost compact" id="gameReset">ҚАЙТА БАСТАУ</button></div>
+        </div>
+        <div class="video-out" id="videoOut" hidden>
+          <video id="videoPreview" controls playsinline loop></video>
+          <div class="video-side">
+            <h3>Shorts видеосы дайын</h3>
+            <p id="videoInfo"></p>
+            <a class="button primary" id="videoDownload" href="#" download>⬇ ВИДЕОНЫ ЖҮКТЕУ</a>
+            <textarea id="videoMeta" rows="9" readonly aria-label="YouTube атауы мен сипаттамасы"></textarea>
+            <div class="video-actions"><button class="button ghost compact" id="copyMeta">АТАУ + СИПАТТАМАНЫ КӨШІРУ</button></div>
+            <div class="yt-auto">
+              <h4>YouTube-қа тікелей жүктеу</h4>
+              <div class="yt-row">
+                <label>Көрінуі<select id="ytPrivacy"><option value="private" selected>Жеке (алдымен тексеріп аламын)</option><option value="unlisted">Сілтемесі бар адамдарға</option><option value="public">Ашық</option></select></label>
+                <button class="button primary" id="ytAuto" type="button">🔐 GOOGLE АККАУНТ ТАҢДАП ЖҮКТЕУ</button>
+              </div>
+              <div class="yt-bar" id="ytBar" hidden><i id="ytBarFill"></i></div>
+              <p id="ytStatus" class="yt-status"></p>
+              <button class="small-link" id="ytClient" type="button">⚙ Client ID баптау</button>
+            </div>
+            <details class="yt-manual"><summary>Қолмен жүктеу (аккаунт тізімі)</summary>
+            <div class="yt-account">
+              <label>YouTube аккаунты<select id="ytAccount" aria-label="YouTube аккаунтын таңдау"></select></label>
+              <button class="button ghost compact" id="ytAdd" type="button">+ АККАУНТ ҚОСУ</button>
+              <button class="button ghost compact" id="ytDel" type="button">ӨШІРУ</button>
+            </div>
+            <button class="button primary" id="ytUpload" type="button">▶ ТАҢДАЛҒАН АККАУНТПЕН YOUTUBE-ҚА ЖҮКТЕУ ↗</button>
+            </details>
+            <small id="ytHint">Түймені бассаңыз: видео жүктеледі, атауы мен сипаттамасы көшіріледі және таңдалған аккаунттың жүктеу беті ашылады (файлды сонда сүйреп тастаңыз).</small>
+            <small>Тігінен (9:16) және 60 секундтан қысқа видео YouTube-та автоматты түрде Shorts болады. Жазу кезінде қойындыны ашық ұстаңыз.</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section catalog-section" id="catalog">
+      <div class="section-heading"><div><p class="eyebrow"><span></span> Толық тізім</p><h2>Көлік каталогы</h2></div><p>Марка немесе модель атауы бойынша ізде.</p></div>
+      <div class="catalog-tools"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="Мысалы: Porsche 911..."></label><select id="makeFilter" aria-label="Марка бойынша сүзгі"></select><select id="typeFilter" aria-label="Кузов бойынша сүзгі"></select></div>
+      <div class="catalog-meta"><span id="catalogCount"></span><button class="small-link" id="clearFilters">Сүзгіні тазарту</button></div>
+      <div class="catalog-grid" id="catalogGrid"></div>
+    </section>
+
+    <section class="section history-section" id="history">
+      <div class="section-heading"><div><p class="eyebrow"><span></span> Жергілікті сақтау</p><h2>Таңдау тарихы</h2></div><button class="button danger" id="clearHistory">Тарихты тазарту</button></div>
+      <p class="history-note">Таңдауларың осы браузерде автоматты түрде сақталады.</p>
+      <div class="history-list" id="historyList"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <footer><a class="brand" href="#top"><span class="brand-mark">DV</span><span>DRIVE<span>VAULT</span></span></a><p>Көлік деректері демонстрациялық мақсатта берілген.</p><span>© 2026 DriveVault</span></footer>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
