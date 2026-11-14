@@ -1,6 +1,7 @@
 import {makeSpec, newState, step, vehiclePerformance, clamp, lerp, KMH100, QUARTER_MILE} from './physics.js';
 import {createAudio} from './audio.js';
 import * as YT from './youtube.js';
+import {saveTrack, loadTrack, clearTrack} from './music.js';
 import {loadCarPhoto, cachedPhoto} from './photos.js';
 import {drawRace, LANES, pickPaints} from './render.js';
 
@@ -180,8 +181,8 @@ export function initGame(getCars) {
       spawnEffects(sim);
       if (w.phase === 'race') {
         if (w.lights.show && w.clock > 2.2) w.lights.show = false;
-        if (w.cars.every(c => c.finished)) { w.phase = 'finish'; w.phaseT = 0; }
-        else if (w.clock > 90) { w.cars.forEach(c => { if (!c.finished) { c.finished = true; c.et = 90; c.tCross = 90; } }); w.phase = 'finish'; w.phaseT = 0; }
+        if (w.cars.every(c => c.finished)) { w.phase = 'finish'; w.phaseT = 0; audio.stopMusic(1); }
+        else if (w.clock > 90) { w.cars.forEach(c => { if (!c.finished) { c.finished = true; c.et = 90; c.tCross = 90; } }); w.phase = 'finish'; w.phaseT = 0; audio.stopMusic(1); }
       } else if (w.phase === 'finish') {
         if (w.phaseT > 1.5) { w.phase = 'result'; w.phaseT = 0; w.resultT = 0; w.result = buildResult(); showResults(w.result); }
       } else {
@@ -227,7 +228,7 @@ export function initGame(getCars) {
 
   // ---------------------------------------------------------------- басқару
   function reset() {
-    token++; cancelAnimationFrame(raf); running = false; cancelRecording(); audio.teardown(); last = 0; acc = 0; shake = 0;
+    token++; frameId++; cancelAnimationFrame(raf); running = false; cancelRecording(); audio.teardown(); last = 0; acc = 0; shake = 0;
     if (mode === 'race') world = makeWorld();
     else { const cars = getCars(); sequenceCar = [makeSpec(cars.A)]; crash = {progress: 0, impact: false, particles: [], metrics: null}; }
     $('gameCountdown').classList.remove('show'); $('gameCountdown').textContent = '';
@@ -255,12 +256,25 @@ export function initGame(getCars) {
     if (running) return;
     reset(); const run = token; $('gameStart').disabled = true; $('gameRecord').disabled = true;
     if (mode === 'crash') return startCrash(run);
-    await audio.resume(); audio.setup(world.cars.map(c => c.spec));
+    await audio.resume(); audio.setup(world.cars.map(c => c.spec)); audio.startMusic();
     if (record) { const ok = await startRecording(); if (!ok) { $('gameStart').disabled = false; $('gameRecord').disabled = false; return; } }
     if (run !== token) return;
-    world.phase = 'intro'; world.phaseT = 0; running = true; last = performance.now(); raf = requestAnimationFrame(loop);
+    world.phase = 'intro'; world.phaseT = 0; running = true; last = performance.now(); raf = nextFrame();
   }
 
+  // Қойынды артқа кеткенде rAF тоқтайды: сондықтан Worker таймері қатар жүреді (кім бұрын шықса, сол жүреді)
+  let frameId = 0, tickWorker = null;
+  function wTimeout(fn, ms) {
+    try {
+      if (!tickWorker) { tickWorker = new Worker(URL.createObjectURL(new Blob(['onmessage=e=>setTimeout(()=>postMessage(e.data),e.data.ms)'], {type: 'text/javascript'}))); tickWorker.fns = new Map(); tickWorker.n = 0; tickWorker.onmessage = e => { const f = tickWorker.fns.get(e.data.k); tickWorker.fns.delete(e.data.k); f && f(); }; }
+      const k = ++tickWorker.n; tickWorker.fns.set(k, fn); tickWorker.postMessage({k, ms});
+    } catch { setTimeout(fn, ms); }
+  }
+  function nextFrame() {
+    const id = ++frameId, fire = now => { if (id !== frameId) return; frameId++; loop(typeof now === 'number' ? now : performance.now()); };
+    wTimeout(() => fire(), 30);
+    return requestAnimationFrame(fire);
+  }
   function loop(now) {
     if (!running) return;
     const dt = Math.min(.05, (now - last) / 1000 || 0); last = now;
@@ -268,10 +282,10 @@ export function initGame(getCars) {
       tick(dt); draw(); drawRec();
       if (world.done && now - world.doneAt > 450) { running = false; endSequence(); return; }
     } else { updateCrash(dt); draw(); if (crash.impact === 'done') { running = false; return; } }
-    raf = requestAnimationFrame(loop);
+    raf = nextFrame();
   }
 
-  function finishSequence() { world.doneAt = performance.now(); audio.silence(); }
+  function finishSequence() { world.doneAt = performance.now(); audio.silence(); audio.stopMusic(2.5); }
   function endSequence() { $('gameStart').disabled = false; $('gameRecord').disabled = false; if (rec) stopRecording(true); }
 
   // ---------------------------------------------------------------- видео жазу
@@ -307,7 +321,7 @@ export function initGame(getCars) {
   function drawRec() { if (rec && world) drawRace(rec.ctx, rec.w, rec.h, world); }
   function setRecIndicator(on) { const el = $('recIndicator'); if (el) el.hidden = !on; }
 
-  let lastIds = null, lastBlob = null;
+  let lastIds = null, lastBlob = null, autoUploadHook = () => {};
   function deliver(r) {
     const blob = new Blob(r.chunks, {type: r.mime.split(';')[0]}), url = URL.createObjectURL(blob);
     const ext = r.mime.includes('mp4') ? 'mp4' : 'webm', w = world, A = w.cars[0].spec.car, B = w.cars[1].spec.car;
@@ -327,7 +341,7 @@ export function initGame(getCars) {
     $('videoInfo').textContent = `${r.w}×${r.h} · ${ext.toUpperCase()} · ${(blob.size / 1048576).toFixed(1)} МБ · ${(w.clock + 9).toFixed(0)} с шамасы`;
     $('videoOut').dataset.has = '1'; $('videoOut').hidden = false; $('videoOut').scrollIntoView({behavior: 'smooth', block: 'nearest'});
     document.dispatchEvent(new CustomEvent('dv:recorded', {detail: {ids: [A.id, B.id]}}));
-    toast('Видео дайын! Төменнен жүктеп алыңыз.');
+    toast('Видео дайын!'); autoUploadHook();
   }
 
   function toast(text) { const el = $('toast'); if (!el) return; el.textContent = text; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 3200); }
@@ -343,7 +357,7 @@ export function initGame(getCars) {
     if (run !== token) return;
     $('gameCountdown').classList.remove('show'); running = true; last = performance.now();
     crash.metrics = crashMetrics(getCars().A, +$('crashSpeed').value, $('barrierType').value);
-    raf = requestAnimationFrame(loop);
+    raf = nextFrame();
   }
 
   function updateCrash(dt) {
@@ -436,6 +450,19 @@ export function initGame(getCars) {
   $('barrierType').onchange = reset;
   ['raceDistance', 'raceLang'].forEach(id => $(id).onchange = reset);
   $('recFormat').onchange = () => { applyView(); };
+  // ---- Өз музыка файлым (барлық жарыста қолданылады)
+  const DEF_NAME = 'Өз Phonk музыкамыз (ішкі, авторлық құқықсыз)';
+  const showMusic = name => { $('musicName').textContent = `🎵 ${name || DEF_NAME}`; $('musicClear').hidden = !name; };
+  const useDefault = async () => { await audio.setMusicFile(null); showMusic(null); };
+  loadTrack().then(async rec => { if (!rec?.data) return useDefault(); try { await audio.setMusicFile(await rec.data.arrayBuffer()); showMusic(rec.name); } catch { useDefault(); } }, useDefault);
+  $('musicBtn').onclick = () => $('musicFile').click();
+  $('musicFile').onchange = async () => {
+    const f = $('musicFile').files[0]; if (!f) return;
+    try { await audio.setMusicFile(await f.arrayBuffer()); await saveTrack(f); showMusic(f.name); toast('Музыка қойылды: барлық жарыстарда ойнайды'); }
+    catch { showMusic(null); toast('Бұл файлды ашу мүмкін болмады (mp3/wav/m4a қолданыңыз)'); }
+    $('musicFile').value = '';
+  };
+  $('musicClear').onclick = async () => { await clearTrack(); await useDefault(); toast('Ішкі Phonk музыкаға оралдық'); };
   // ---- YouTube аккаунттары (бірнеше аккаунт): тізім браузерде сақталады
   const YT_KEY = 'drivevault-yt-accounts';
   const ytLoad = () => { try { return JSON.parse(localStorage.getItem(YT_KEY)) || {list: [], sel: 0}; } catch { return {list: [], sel: 0}; } };
@@ -466,29 +493,37 @@ export function initGame(getCars) {
   ytRender();
   // ---- Тікелей жүктеу (YouTube Data API)
   const ytStatus = (m, err) => { const el = $('ytStatus'); el.textContent = ''; el.classList.toggle('err', !!err); if (m instanceof Node) el.appendChild(m); else el.textContent = m; };
-  const refreshClient = () => { if (!YT.getClientId()) ytStatus('Алдымен бір рет «Client ID баптау» түймесін басыңыз (README-де қадамдары бар).'); else if (!$('ytStatus').textContent) ytStatus('Дайын: түймені басып, қажетті Google аккаунтты таңдаңыз.'); };
+  const refreshClient = () => { if (!YT.getClientId()) ytStatus(`Алдымен бір рет «Client ID баптау» түймесін басыңыз. Google Cloud → Authorized JavaScript origins ішіне осы адрес қосылуы керек: ${location.origin}`); else if (!$('ytStatus').textContent) ytStatus('Дайын: түймені басып, қажетті Google аккаунтты таңдаңыз.'); };
   $('ytClient').onclick = () => {
-    const v = prompt('Google Cloud → Credentials → OAuth client ID (Web application) мәнін қойыңыз. Мысалы: …apps.googleusercontent.com', YT.getClientId());
+    const v = prompt('Google Cloud → Credentials → OAuth client ID (Web application) мәнін қойыңыз. Authorized origins ішінде болуы керек адрес: ' + location.origin, YT.getClientId());
     if (v === null) return; YT.setClientId(v); $('ytStatus').textContent = ''; refreshClient();
   };
-  $('ytAuto').onclick = async () => {
-    if (!lastBlob) return ytStatus('Алдымен видео жазыңыз.', true);
-    if (!YT.getClientId()) { $('ytClient').click(); if (!YT.getClientId()) return; }
-    const btn = $('ytAuto'); btn.disabled = true;
+  async function doUpload(interactive) {
+    if (!lastBlob || uploading) return;
+    if (!YT.getClientId()) { if (!interactive) return; $('ytClient').click(); if (!YT.getClientId()) return; }
+    if (!interactive && !YT.hasToken()) return ytStatus('Бірінші рет «Google аккаунт таңдап жүктеу» түймесін басыңыз, содан кейін келесі видеолар өздігінен жүктеледі.');
+    const btn = $('ytAuto'); btn.disabled = true; uploading = true;
     try {
       ytStatus('Google аккаунт таңдау терезесі ашылды…');
-      const tok = await YT.signIn(true), ch = await YT.channelInfo(tok);
+      const tok = await YT.signIn(interactive && !YT.hasToken()), ch = await YT.channelInfo(tok);
       const [title, ...rest] = $('videoMeta').value.split(String.fromCharCode(10)), description = rest.join(String.fromCharCode(10)).trim();
       $('ytBar').hidden = false; $('ytBarFill').style.width = '0%';
       ytStatus(`Арна: «${ch.title}». Жүктеліп жатыр…`);
       const out = await YT.uploadVideo(tok, lastBlob, {title, description, tags: ['Shorts', 'DragRace', 'AI Simulation', 'CarRace'], privacy: $('ytPrivacy').value, onProgress: p => { $('ytBarFill').style.width = (p * 100).toFixed(0) + '%'; }});
       const box = document.createElement('span'); box.append(`✅ «${ch.title}» арнасына жүктелді. `);
-      const a1 = Object.assign(document.createElement('a'), {href: out.url, target: '_blank', rel: 'noopener', textContent: 'Видеоны ашу'}), a2 = Object.assign(document.createElement('a'), {href: out.studio, target: '_blank', rel: 'noopener', textContent: 'Studio-да өзгерту'});
-      box.append(a1, ' · ', a2); ytStatus(box);
+      box.append(Object.assign(document.createElement('a'), {href: out.url, target: '_blank', rel: 'noopener', textContent: 'Видеоны ашу'}), ' · ', Object.assign(document.createElement('a'), {href: out.studio, target: '_blank', rel: 'noopener', textContent: 'Studio-да өзгерту'}));
+      ytStatus(box);
       document.dispatchEvent(new CustomEvent('dv:uploaded', {detail: {ids: lastIds}}));
-      toast('Видео YouTube-қа жүктелді!');
-    } catch (e) { ytStatus('❌ ' + (e.message || e), true); } finally { btn.disabled = false; }
-  };
+      // жадты босату: видео тек YouTube-та қалады
+      const vid = $('videoPreview'); if (vid.dataset.url) URL.revokeObjectURL(vid.dataset.url); vid.removeAttribute('src'); vid.load(); vid.dataset.url = ''; $('videoDownload').removeAttribute('href'); lastBlob = null;
+      toast('Видео YouTube-қа жүктелді, компьютерде сақталмады.');
+    } catch (e) { ytStatus('❌ ' + (e.message || e) + ' (видео жадта тұр, қайта басып көріңіз)', true); document.dispatchEvent(new CustomEvent('dv:uploadfail', {detail: {error: String(e.message || e)}})); } finally { btn.disabled = false; uploading = false; }
+  }
+  let uploading = false;
+  $('ytAuto').onclick = () => doUpload(true);
+  try { $('ytAutoUp').checked = localStorage.getItem('drivevault-yt-autoup') !== '0'; } catch {}
+  $('ytAutoUp').onchange = () => { try { localStorage.setItem('drivevault-yt-autoup', $('ytAutoUp').checked ? '1' : '0'); } catch {} };
+  autoUploadHook = () => { if ($('ytAutoUp').checked) doUpload(false); };
   refreshClient();
   $('copyMeta').onclick = async () => { try { await navigator.clipboard.writeText($('videoMeta').value); toast('Атау мен сипаттама көшірілді'); } catch { $('videoMeta').select(); document.execCommand?.('copy'); toast('Көшірілді'); } };
   applyView(); resize(); reset();
