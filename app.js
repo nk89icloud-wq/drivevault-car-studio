@@ -2,6 +2,7 @@ import {CARS, MAKES, fullName, findCar} from './catalog.js';
 import {initGame} from './game.js';
 import {loadCarPhoto} from './photos.js';
 import {initCalendar} from './calendar.js';
+import * as YT from './youtube.js';
 
 const $ = id => document.getElementById(id);
 const TYPES = [...new Set(CARS.map(c => c.type))].sort();
@@ -18,6 +19,7 @@ function options(el, values, label) {
 function modelsFor(make) { return CARS.filter(c => c.make === make); }
 
 function setupSelector(side) {
+  const dl = $('carNames'); if (dl && !dl.children.length) dl.innerHTML = CARS.map(c => `<option value="${fullName(c)}"></option>`).join('');
   const make = $(`make${side}`), model = $(`model${side}`), year = $(`year${side}`);
   options(make, MAKES);
   options(year, Array.from({length: 12}, (_, i) => 2026 - i));
@@ -25,6 +27,13 @@ function setupSelector(side) {
   make.value = initial.make;
   fillModels(side, initial.id);
   year.value = 2026;
+  const find = $(`find${side}`);
+  const pick = () => {
+    const q = find.value.trim().toLocaleLowerCase('kk'); if (!q) return;
+    const hit = CARS.find(c => fullName(c).toLocaleLowerCase('kk') === q) || CARS.find(c => fullName(c).toLocaleLowerCase('kk').includes(q));
+    if (hit) { selectCar(side, hit.id); find.value = ''; find.blur(); } else showToast('Табылмады: ' + find.value);
+  };
+  find.addEventListener('change', pick); find.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pick(); } });
   make.addEventListener('change', () => { fillModels(side); selectCar(side, Number(model.value)); });
   model.addEventListener('change', () => selectCar(side, Number(model.value)));
 }
@@ -121,7 +130,23 @@ function init() {
   $('swap').onclick = () => { const a=selected.A,b=selected.B; selectCar('A',b,false); selectCar('B',a,false); showToast('Көліктердің орны ауыстырылды'); };
   gameController = initGame(() => ({A: findCar(selected.A), B: findCar(selected.B)}));
   window.__dv = gameController;
-  initCalendar({byId: findCar, select: (a, b, n) => { selectCar('A', a, false); selectCar('B', b, false); showToast(`${n}-күн: ${fullName(findCar(a))} vs ${fullName(findCar(b))}`); document.querySelector('#studio').scrollIntoView({behavior: 'smooth'}); }});
+  initCalendar({byId: findCar,
+    signIn: async () => {
+      if (!YT.getClientId()) { $('ytClient').click(); if (!YT.getClientId()) throw new Error('Client ID жоқ'); }
+      $('ytAutoUp').checked = true; await YT.signIn(true);
+    },
+    runOne: () => new Promise((res, rej) => {
+      const clean = () => { clearTimeout(tm); document.removeEventListener('dv:uploaded', done); document.removeEventListener('dv:uploadfail', fail); };
+      const done = () => { clean(); setTimeout(res, 2500); };
+      const fail = e => { clean(); rej(new Error(e.detail?.error || 'жүктеу қатесі')); };
+      const tm = setTimeout(() => { clean(); rej(new Error('уақыт бітті (6 мин)')); }, 6 * 60e3);
+      $('ytAutoUp').checked = true;
+      document.addEventListener('dv:uploaded', done); document.addEventListener('dv:uploadfail', fail);
+      setTimeout(() => $('gameRecord').click(), 1200);
+    }), select: (a, b, n) => { selectCar('A', a, false); selectCar('B', b, false); showToast(`${n}-күн: ${fullName(findCar(a))} vs ${fullName(findCar(b))}`); document.querySelector('#studio').scrollIntoView({behavior: 'smooth'}); }});
+
+  { const q = new URLSearchParams(location.search), f = n => CARS.find(c => fullName(c) === n);
+    const a = f(q.get('a')), b = f(q.get('b')); if (a && b) { selectCar('A', a.id, false); selectCar('B', b.id, false); } }
   document.querySelectorAll('.open-catalog').forEach(b => b.onclick = () => { document.querySelector('#catalog').scrollIntoView(); showToast(`${b.dataset.target} орнына көлік таңдаңыз`); });
   $('soundToggle').onclick = e => { e.currentTarget.classList.toggle('on'); showToast(e.currentTarget.classList.contains('on') ? 'Дыбыс қосылды' : 'Дыбыс өшірілді'); };
   document.querySelectorAll('[id^=year]').forEach(el => el.onchange = () => addHistory(el.id.slice(-1), findCar(selected[el.id.slice(-1)])));
