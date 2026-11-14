@@ -96,3 +96,10 @@
 .tr-slot { width: 100%; box-sizing: border-box; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; color: inherit; font: inherit; font-weight: 700; font-size: .85rem; padding: 5px 8px; }
 .tr-slot:focus { outline: 0; border-color: #4cc3ff; }
 .tr-slot:disabled { opacity: .7; }
+
+.tr-progress { flex: 1; min-width: 0; margin: 0 14px; display: grid; gap: 4px; justify-items: center; }
+.tr-progress[hidden] { display: none !important; }
+.tr-progress-bar { width: min(100%, 420px); height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; }
+.tr-progress-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffb020, #37d67a); transition: width .4s; }
+.tr-progress span { font-size: .78rem; font-weight: 800; letter-spacing: .03em; white-space: nowrap; }
+@media (max-width: 680px) { .tr-progress { margin: 0 6px; } .tr-progress span { font-size: .62rem; } }
