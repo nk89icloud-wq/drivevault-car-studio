@@ -103,3 +103,9 @@
 .tr-progress-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffb020, #37d67a); transition: width .4s; }
 .tr-progress span { font-size: .78rem; font-weight: 800; letter-spacing: .03em; white-space: nowrap; }
 @media (max-width: 680px) { .tr-progress { margin: 0 6px; } .tr-progress span { font-size: .62rem; } }
+
+.tr-row { display: flex; gap: 6px; }
+.tr-open { flex: 0 0 auto; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; color: inherit; font: inherit; font-weight: 800; padding: 0 10px; cursor: pointer; }
+.tr-open:hover:not(:disabled) { border-color: #4cc3ff; }
+.tr-open:disabled { opacity: .5; cursor: default; }
+.tr-list { width: 100%; margin-top: 6px; box-sizing: border-box; background: #0d1320; color: #fff; border: 1px solid #4cc3ff; border-radius: 8px; font: inherit; font-size: .8rem; }
