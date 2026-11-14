@@ -44,7 +44,7 @@ npm run check
 2. «APIs & Services → Library» → **YouTube Data API v3** → Enable.
 3. «OAuth consent screen» → External → аты мен email-ді толтырыңыз → «Test users» ішіне өзіңіздің барлық Google email-деріңізді қосыңыз (бірнеше аккаунт болса, бәрін).
 4. «Credentials → Create credentials → OAuth client ID» → түрі **Web application**.
-   «Authorized JavaScript origins» ішіне сайттың адресін қосыңыз (мысалы `https://nk-orda.github.io` және тексеру үшін `http://localhost:4173`).
+   «Authorized JavaScript origins» ішіне сайттың адресін қосыңыз (`https://nk89icloud-wq.github.io` — тек осы, жолсыз, соңында `/` жоқ; жергілікті тексеру үшін қосымша `http://localhost:4173`).
 5. Шыққан **Client ID** (`…apps.googleusercontent.com`) мәнін сайттағы «⚙ Client ID баптау» түймесі арқылы қойыңыз. Ол тек сіздің браузеріңізде сақталады.
 
 **Білу керек:**
