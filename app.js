@@ -1,8 +1,9 @@
-import {CARS, MAKES, fullName, findCar} from './catalog.js';
+import {CARS, MAKES, fullName, findCar, atYear} from './catalog.js';
 import {initGame} from './game.js';
 import {loadCarPhoto} from './photos.js';
 import {initCalendar} from './calendar.js';
 import * as YT from './youtube.js';
+import {initTournament} from './tournament.js';
 
 const $ = id => document.getElementById(id);
 const TYPES = [...new Set(CARS.map(c => c.type))].sort();
@@ -58,8 +59,9 @@ function selectCar(side, id, save = true) {
   resetRace();
 }
 
+const carFor = side => atYear(findCar(selected[side]), $(`year${side}`)?.value);
 function renderSelected(side) {
-  const car = findCar(selected[side]);
+  const car = carFor(side);
   $(`visual${side}`).textContent = fullName(car).toUpperCase();
   showPhoto(side, car);
   $(`spec${side}`).innerHTML = [
@@ -128,7 +130,8 @@ function init() {
   $('historyList').onclick = e => { const b=e.target.closest('[data-restore]'); if(b){ selectCar(b.dataset.side, Number(b.dataset.restore)); document.querySelector('#studio').scrollIntoView(); } };
   $('clearHistory').onclick = () => { localStorage.removeItem('drivevault-history'); renderHistory(); showToast('Таңдау тарихы тазартылды'); };
   $('swap').onclick = () => { const a=selected.A,b=selected.B; selectCar('A',b,false); selectCar('B',a,false); showToast('Көліктердің орны ауыстырылды'); };
-  gameController = initGame(() => ({A: findCar(selected.A), B: findCar(selected.B)}));
+  gameController = initGame(() => ({A: carFor('A'), B: carFor('B')}));
+  initTournament({game: gameController, YT});
   window.__dv = gameController;
   initCalendar({byId: findCar,
     signIn: async () => {
@@ -149,7 +152,7 @@ function init() {
     const a = f(q.get('a')), b = f(q.get('b')); if (a && b) { selectCar('A', a.id, false); selectCar('B', b.id, false); } }
   document.querySelectorAll('.open-catalog').forEach(b => b.onclick = () => { document.querySelector('#catalog').scrollIntoView(); showToast(`${b.dataset.target} орнына көлік таңдаңыз`); });
   $('soundToggle').onclick = e => { e.currentTarget.classList.toggle('on'); showToast(e.currentTarget.classList.contains('on') ? 'Дыбыс қосылды' : 'Дыбыс өшірілді'); };
-  document.querySelectorAll('[id^=year]').forEach(el => el.onchange = () => addHistory(el.id.slice(-1), findCar(selected[el.id.slice(-1)])));
+  document.querySelectorAll('[id^=year]').forEach(el => el.onchange = () => { const sd = el.id.slice(-1); renderSelected(sd); resetRace(); addHistory(sd, findCar(selected[sd])); });
 }
 
 init();
