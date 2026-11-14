@@ -12,7 +12,8 @@ export const SPRITE_BOX = {
   silver: {x: 157, y: 141, w: 1222, h: 737}
 };
 const TYPE_SHAPE = {'SUV': 1.32, 'Пикап': 1.38, 'Седан': 1.12, 'Универсал': 1.16, 'Лифтбек': 1.12, 'Хэтчбек': 1.14, 'Электр': 1.1, 'Купе': 1, 'Спорткар': .96, 'Суперкар': .92, 'Гиперкар': .9, 'Родстер': .94};
-const WALL_X = 7.4, ROAD_X = 5.4, LANE_LINE = 3.8;
+const GEO0 = {wallX: 7.4, roadX: 5.4, lineX: 3.8};
+export const ACCENT8 = ['#ff4d4d', '#ffb020', '#37d67a', '#2bb6ff', '#a66bff', '#ff6bd6', '#00e0c6', '#c9f03c'];
 
 let skyCache = {key: '', canvas: null};
 let vignetteCache = {key: '', gradient: null};
@@ -79,48 +80,48 @@ function drawWorld(ctx, c, W) {
   // жол
   const road = ctx.createLinearGradient(0, top, 0, h);
   road.addColorStop(0, hz > 0 ? css(HAZE) : '#7a8084'); road.addColorStop(.12, '#6c7174'); road.addColorStop(.4, '#4a4f53'); road.addColorStop(1, '#2e3236');
-  quad(ctx, c, -ROAD_X, ROAD_X, c.zn, far, road);
+  quad(ctx, c, -(W.geo || GEO0).roadX, (W.geo || GEO0).roadX, c.zn, far, road);
   // көлденең жік-сызықтар (асфальт секциялары), жылдамдық сезімі үшін
   ctx.save();
   for (let z = Math.ceil(c.zn / 9) * 9; z < c.z + 260; z += 9) {
-    const a = proj(c, -ROAD_X, z), b = proj(c, ROAD_X, z); if (!a) continue;
+    const a = proj(c, -(W.geo || GEO0).roadX, z), b = proj(c, (W.geo || GEO0).roadX, z); if (!a) continue;
     ctx.strokeStyle = `rgba(10,12,14,${.22 * (1 - a.d / 260)})`; ctx.lineWidth = Math.max(1, c.f * .06 / a.d);
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
   ctx.restore();
   // резеңке іздері (старт аймағы) және доңғалақ іздері
-  quad(ctx, c, LANES[0] - .95, LANES[0] + .95, -10, 70, 'rgba(12,13,15,.11)');
-  quad(ctx, c, LANES[1] - .95, LANES[1] + .95, -10, 70, 'rgba(12,13,15,.11)');
+  const LN = W.lanes || LANES; LN.forEach(lx => quad(ctx, c, lx - .95, lx + .95, -10, 70, 'rgba(12,13,15,.11)'));
+  if (LN.length > 2) for (let k = 0; k + 1 < LN.length; k++) { const bx = (LN[k] + LN[k + 1]) / 2; for (let z = Math.floor(c.zn / 12) * 12; z < c.z + 300; z += 12) quad(ctx, c, bx - .07, bx + .07, z, z + 3, 'rgba(240,243,244,.8)'); }
   W.marks.forEach((m, i) => {
     if (!m) return;
-    [-.8, .8].forEach(o => quad(ctx, c, LANES[i] + o - .13, LANES[i] + o + .13, m.z0, m.z1, 'rgba(6,6,7,.62)'));
+    [-.8, .8].forEach(o => quad(ctx, c, LN[i] + o - .13, LN[i] + o + .13, m.z0, m.z1, 'rgba(6,6,7,.62)'));
   });
   // жол белгілері
-  quad(ctx, c, -LANE_LINE - .09, -LANE_LINE + .09, c.zn, far, 'rgba(240,243,244,.95)');
-  quad(ctx, c, LANE_LINE - .09, LANE_LINE + .09, c.zn, far, 'rgba(240,243,244,.95)');
+  quad(ctx, c, -(W.geo || GEO0).lineX - .09, -(W.geo || GEO0).lineX + .09, c.zn, far, 'rgba(240,243,244,.95)');
+  quad(ctx, c, (W.geo || GEO0).lineX - .09, (W.geo || GEO0).lineX + .09, c.zn, far, 'rgba(240,243,244,.95)');
   for (let z = Math.floor(c.zn / 12) * 12; z < c.z + 300; z += 12) quad(ctx, c, -.07, .07, z, z + 3, 'rgba(240,243,244,.9)');
   // старт сызықтары
-  quad(ctx, c, -LANE_LINE, LANE_LINE, -.25, .12, 'rgba(250,250,250,.95)');
-  quad(ctx, c, -LANE_LINE, LANE_LINE, -1.3, -1.05, 'rgba(250,250,250,.5)');
+  quad(ctx, c, -(W.geo || GEO0).lineX, (W.geo || GEO0).lineX, -.25, .12, 'rgba(250,250,250,.95)');
+  quad(ctx, c, -(W.geo || GEO0).lineX, (W.geo || GEO0).lineX, -1.3, -1.05, 'rgba(250,250,250,.5)');
   // 100 м сызықтары
-  for (let m = 100; m < W.D; m += 100) quad(ctx, c, -LANE_LINE, LANE_LINE, m, m + .35, 'rgba(255,255,255,.55)');
+  for (let m = 100; m < W.D; m += 100) quad(ctx, c, -(W.geo || GEO0).lineX, (W.geo || GEO0).lineX, m, m + .35, 'rgba(255,255,255,.55)');
   // мәре сызығы
   if (W.D < far) {
     for (let r = 0; r < 2; r++) for (let i = 0; i < 16; i++) {
-      const X0 = -LANE_LINE + i * (2 * LANE_LINE / 16);
-      quad(ctx, c, X0, X0 + 2 * LANE_LINE / 16, W.D + r * .6, W.D + (r + 1) * .6, (i + r) % 2 ? '#111' : '#f4f4f4');
+      const X0 = -(W.geo || GEO0).lineX + i * (2 * (W.geo || GEO0).lineX / 16);
+      quad(ctx, c, X0, X0 + 2 * (W.geo || GEO0).lineX / 16, W.D + r * .6, W.D + (r + 1) * .6, (i + r) % 2 ? '#111' : '#f4f4f4');
     }
   }
   // қабырғалар
   drawWalls(ctx, c, W, -1); drawWalls(ctx, c, W, 1);
   // белгі тақталары (100/200/300 м)
-  for (let m = 100; m < W.D; m += 100) [-1, 1].forEach(s => drawSign(ctx, c, s * (ROAD_X + .9), m, String(m)));
+  for (let m = 100; m < W.D; m += 100) [-1, 1].forEach(s => drawSign(ctx, c, s * ((W.geo || GEO0).roadX + .9), m, String(m)));
   // мәре қақпасы
   if (W.D - c.z > 3 && W.D < far) drawGantry(ctx, c, W);
 }
 
 function drawWalls(ctx, c, W, side) {
-  const x = side * WALL_X, hgt = 1.05;
+  const x = side * (W.geo || GEO0).wallX, hgt = 1.05;
   const start = Math.floor(c.zn / 4) * 4, end = c.z + 380;
   for (let z = end - (end % 4); z >= start; z -= 4) {
     const k = Math.floor(z / 4);
@@ -163,8 +164,8 @@ function drawSign(ctx, c, X, z, text) {
 }
 
 function drawGantry(ctx, c, W) {
-  const z = W.D + .6, L = proj(c, -WALL_X + .5, z, 0), R = proj(c, WALL_X - .5, z, 0);
-  const Lt = proj(c, -WALL_X + .5, z, 7.2), Rt = proj(c, WALL_X - .5, z, 7.2), Lb = proj(c, -WALL_X + .5, z, 5.9);
+  const z = W.D + .6, L = proj(c, -(W.geo || GEO0).wallX + .5, z, 0), R = proj(c, (W.geo || GEO0).wallX - .5, z, 0);
+  const Lt = proj(c, -(W.geo || GEO0).wallX + .5, z, 7.2), Rt = proj(c, (W.geo || GEO0).wallX - .5, z, 7.2), Lb = proj(c, -(W.geo || GEO0).wallX + .5, z, 5.9);
   if (!L || !R || !Lt || !Rt) return;
   const pw = Math.max(2, c.f * .45 / L.d);
   ctx.fillStyle = css(fog(L.d, [44, 50, 58]));
@@ -322,7 +323,7 @@ function drawRearCar(ctx, w, h, o) {
 
 function drawCar(ctx, c, W, i) {
   const car = W.cars[i], spec = car.spec, st = car.st;
-  const rear = st.x - spec.len, X = LANES[i];
+  const rear = st.x - spec.len, X = (W.lanes || LANES)[i];
   const p = proj(c, X, rear, 0); if (!p) return;
   const dim = CAR_DIM[spec.car.type] || [1.9, 1.4, 'sedan'];
   const wpx = c.f * dim[0] / p.d, hpx = c.f * dim[1] * c.cs / p.d;
@@ -476,7 +477,7 @@ function drawSpeedo(ctx, c, W, i, x, y, w, h) {
   const gear = spec.ev ? 'EV' : (st.v < .5 && !st.launched ? 'N' : String(st.gear + 1));
   ctx.fillStyle = k; rr(ctx, x + 18 * u, y + 18 * u, 56 * u, 56 * u, 10 * u); ctx.fill();
   txt(ctx, gear, x + 46 * u, y + 58 * u, 34 * u, '#071018', 'center', 900);
-  txt(ctx, car.finished ? `ET ${car.et.toFixed(2)}` : `${Math.min(Math.round(W.D), Math.max(0, Math.round(st.x)))} ${W.T.m}`, x + w - 20 * u, y + 46 * u, 26 * u, car.finished ? '#ffd24a' : '#e6eef4', 'right', 800);
+  txt(ctx, car.finished ? `${car.tCross.toFixed(2)} s` : `${Math.min(Math.round(W.D), Math.max(0, Math.round(st.x)))} ${W.T.m}`, x + w - 20 * u, y + 46 * u, 26 * u, car.finished ? '#ffd24a' : '#e6eef4', 'right', 800);
   txt(ctx, i ? 'B' : 'A', x + w - 20 * u, y + 72 * u, 16 * u, k, 'right', 800);
   // rpm
   const n = 22, bw = (w - 40 * u) / n, rpm01 = clamp((st.rpm - spec.idle) / (spec.redline - spec.idle), 0, 1);
@@ -546,7 +547,7 @@ function drawResult(ctx, c, W) {
     const s = fit(ctx, nm, cw - 60 * u, 62 * u, 900); txt(ctx, nm, c.w / 2, y + 150 * u, s, ACCENT[wi], 'center', 900);
     txt(ctx, `${T.by} ${R.margin.time.toFixed(3)} ${T.s}  ·  ${R.margin.dist.toFixed(1)} ${T.m}`, c.w / 2, y + 196 * u, 28 * u, '#e6eef4', 'center', 700);
   }
-  const rows = [[T.et, i => R.rows[i].et.toFixed(3) + ' ' + T.s], [T.trap, i => Math.round(R.rows[i].trap) + ' ' + T.kmh], [T.t100, i => R.rows[i].t100 ? R.rows[i].t100.toFixed(2) + ' ' + T.s : '—'], [T.rt, i => R.rows[i].rt.toFixed(3) + ' ' + T.s]];
+  const rows = [[T.fin || 'Time', i => (R.rows[i].fin ?? R.rows[i].et).toFixed(3) + ' ' + T.s], [T.et, i => R.rows[i].et.toFixed(3) + ' ' + T.s], [T.trap, i => Math.round(R.rows[i].trap) + ' ' + T.kmh], [T.t100, i => R.rows[i].t100 ? R.rows[i].t100.toFixed(2) + ' ' + T.s : '—'], [T.rt, i => R.rows[i].rt.toFixed(3) + ' ' + T.s]];
   const top = y + (c.portrait ? 270 : 250) * u, rowH = (c.portrait ? 120 : 70) * u, colA = x + cw * .56, colB = x + cw * .86;
   txt(ctx, `A · ${W.cars[0].spec.car.model}`, colA, top - 22 * u, 20 * u, ACCENT[0], 'center', 800); txt(ctx, `B · ${W.cars[1].spec.car.model}`, colB, top - 22 * u, 20 * u, ACCENT[1], 'center', 800);
   rows.forEach(([label, f], n) => {
@@ -560,6 +561,7 @@ function drawResult(ctx, c, W) {
 }
 
 function drawHud(ctx, c, W) {
+  if (W.cars.length > 2) return drawHudN(ctx, c, W);
   const {w, h, u} = c, T = W.T;
   const clockShown = W.cars.every(x => x.finished) ? Math.max(...W.cars.map(x => x.tCross)) : W.clock;
   if (!W.hud) return;
@@ -593,12 +595,85 @@ function drawHud(ctx, c, W) {
   drawResult(ctx, c, W);
 }
 
+
+// ---------- 8 көлікті жарыс (N>2): жетекші тақта, көлік үстіндегі атаулар, нәтиже кестесі ----------
+function drawTags(ctx, c, W) {
+  const cols = W.colors || ACCENT8, LN = W.lanes || LANES;
+  W.cars.forEach((car, i) => {
+    const p0 = proj(c, LN[i], car.st.x - car.spec.len * .5, 1.9); if (!p0 || p0.d < 6) return; const p = {x: p0.x, y: p0.y - (i % 2) * clamp(c.f * .62 / p0.d, 9, 24) * 1.45, d: p0.d};
+    const size = clamp(c.f * .62 / p.d, 9, 24), label = `${i + 1} ${car.spec.car.model}`.slice(0, 16);
+    ctx.save(); ctx.font = font(800, size); const tw = ctx.measureText(label).width + size * 1.2;
+    ctx.fillStyle = cols[i]; rr(ctx, p.x - tw / 2, p.y - size * .95, tw, size * 1.5, size * .6); ctx.fill();
+    ctx.fillStyle = '#10131a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, p.x, p.y - size * .2); ctx.restore();
+  });
+}
+
+function drawProgressN(ctx, c, W, x, y, w) {
+  const u = c.u, h = 14 * u, cols = W.colors || ACCENT8;
+  glass(ctx, x - 18 * u, y - 40 * u, w + 36 * u, 92 * u, 14 * u, null, .66);
+  ctx.fillStyle = 'rgba(255,255,255,.14)'; rr(ctx, x, y, w, h, h / 2); ctx.fill();
+  [0, .25, .5, .75, 1].forEach(t => { ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(x + w * t - 1 * u, y - 6 * u, 2 * u, h + 12 * u); });
+  W.cars.forEach((car, i) => {
+    const t = clamp(car.st.x / W.D, 0, 1), px = x + w * t;
+    ctx.beginPath(); ctx.arc(px, y + h / 2, 11 * u, 0, 7); ctx.fillStyle = cols[i]; ctx.fill();
+    txt(ctx, String(i + 1), px, y + h / 2 + 5 * u, 13 * u, '#10131a', 'center', 900);
+  });
+  txt(ctx, `${Math.round(W.D)} ${W.T.m}`, x + w, y + 44 * u, 16 * u, '#9fb0bc', 'right', 700);
+}
+
+function drawHudN(ctx, c, W) {
+  const {w, h, u} = c, T = W.T, n = W.cars.length, cols = W.colors || ACCENT8;
+  if (!W.hud) return;
+  const clockShown = W.cars.every(x => x.finished) ? Math.max(...W.cars.map(x => x.tCross)) : W.clock;
+  const order = W.cars.map((_, i) => i).sort((a, b) => { const A = W.cars[a], B = W.cars[b]; if (A.finished && B.finished) return A.tCross - B.tCross; if (A.finished !== B.finished) return A.finished ? -1 : 1; return B.st.x - A.st.x; });
+  const rowH = (c.portrait ? 44 : 38) * u, pw = c.portrait ? w * .6 : 430 * u, px = 24 * u, py = (c.portrait ? 120 : 22) * u;
+  glass(ctx, px, py, pw, 50 * u + n * rowH, 14 * u, null, .72);
+  txt(ctx, `${Math.round(W.D)} ${T.m} · LIVE`, px + 18 * u, py + 34 * u, 20 * u, '#ffd24a', 'left', 800);
+  order.forEach((i, r) => {
+    const car = W.cars[i], y = py + 50 * u + r * rowH, m = car.spec.car;
+    ctx.fillStyle = cols[i]; rr(ctx, px + 12 * u, y + 6 * u, 8 * u, rowH - 12 * u, 4 * u); ctx.fill();
+    txt(ctx, String(r + 1), px + 40 * u, y + rowH * .68, 22 * u, '#fff', 'center', 900);
+    const label = `${m.make} ${m.model}`, s = fit(ctx, label, pw - 190 * u, 20 * u, 700); txt(ctx, label, px + 62 * u, y + rowH * .66, s, '#fff', 'left', 700);
+    txt(ctx, car.finished ? `${car.tCross.toFixed(2)} s` : `${Math.round(car.st.v * 3.6)}`, px + pw - 16 * u, y + rowH * .66, 20 * u, car.finished ? '#ffd24a' : '#c6d2db', 'right', 800);
+  });
+  if (W.lights.show) { if (c.portrait) drawTree(ctx, c, W, w - 120 * u, 160 * u, .7 * u); else drawTree(ctx, c, W, w / 2, 56 * u, .72 * u); }
+  if (W.phase !== 'result') {
+    drawProgressN(ctx, c, W, c.portrait ? 60 * u : w / 2 - 260 * u, h - (c.portrait ? 300 : 140) * u, c.portrait ? w - 140 * u : 520 * u);
+    txt(ctx, clockShown > 0 ? clockShown.toFixed(2) : '0.00', w / 2, h - (c.portrait ? 340 : 190) * u, 44 * u, '#fff', 'center', 900);
+  }
+  drawCountdown(ctx, c, W);
+  if (W.banner) { const b = W.banner, al = clamp(1 - b.age / b.life, 0, 1); ctx.save(); ctx.globalAlpha = Math.min(1, al * 3); txt(ctx, b.text, w / 2, h * (c.portrait ? .36 : .3), 64 * u, b.color || '#fff', 'center', 900); ctx.restore(); }
+  drawResultN(ctx, c, W);
+}
+
+function drawResultN(ctx, c, W) {
+  const R = W.result; if (!R || !R.order) return;
+  const u = c.u, a = clamp(W.resultT / .5, 0, 1), cols = W.colors || ACCENT8, n = R.order.length;
+  const cw = c.portrait ? c.w - 60 * u : 900 * u, rowH = 52 * u, ch = 200 * u + n * rowH, x = (c.w - cw) / 2, y = Math.max(10 * u, (c.h - ch) / 2);
+  ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, 0, c.w, c.h); ctx.translate(0, (1 - a) * 40 * u);
+  glass(ctx, x, y, cw, ch, 28 * u, cols[R.winner], .92);
+  txt(ctx, `🏆 ${W.T.winner}`, c.w / 2, y + 62 * u, 36 * u, '#ffd24a', 'center', 900);
+  const wm = W.cars[R.winner].spec.car, nm = `${wm.make} ${wm.model}`, s = fit(ctx, nm, cw - 60 * u, 56 * u, 900); txt(ctx, nm, c.w / 2, y + 128 * u, s, cols[R.winner], 'center', 900);
+  R.order.forEach((i, r) => {
+    const ry = y + 170 * u + r * rowH, m = W.cars[i].spec.car, row = R.rows[i];
+    ctx.fillStyle = r % 2 ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.07)'; ctx.fillRect(x + 20 * u, ry, cw - 40 * u, rowH);
+    ctx.fillStyle = cols[i]; ctx.fillRect(x + 20 * u, ry, 8 * u, rowH);
+    txt(ctx, String(r + 1), x + 56 * u, ry + rowH * .68, 26 * u, '#fff', 'center', 900);
+    const label = `${m.make} ${m.model}`, ls = fit(ctx, label, cw * .42, 26 * u, 700); txt(ctx, label, x + 86 * u, ry + rowH * .68, ls, '#fff', 'left', 700);
+    txt(ctx, `${row.fin.toFixed(3)} ${W.T.s}`, x + cw - 270 * u, ry + rowH * .68, 26 * u, r === 0 ? '#ffd24a' : '#fff', 'right', 800);
+    txt(ctx, r ? `+${(row.fin - R.rows[R.order[0]].fin).toFixed(2)}` : '', x + cw - 150 * u, ry + rowH * .68, 22 * u, '#9fb0bc', 'right', 700);
+    txt(ctx, `${Math.round(row.trap)} ${W.T.kmh}`, x + cw - 40 * u, ry + rowH * .68, 22 * u, '#c6d2db', 'right', 700);
+  });
+  ctx.restore();
+}
+
 export function drawRace(ctx, w, h, W) {
   const c = makeCamera(w, h, W.cam);
   ctx.save(); ctx.clearRect(0, 0, w, h);
   drawWorld(ctx, c, W);
-  const order = [0, 1].sort((a, b) => W.cars[b].st.x - W.cars[a].st.x);
+  const order = W.cars.map((_, i) => i).sort((a, b) => W.cars[b].st.x - W.cars[a].st.x);
   order.forEach(i => drawCar(ctx, c, W, i));
+  if (W.cars.length > 2) drawTags(ctx, c, W);
   drawSmoke(ctx, c, W);
   drawFx(ctx, c, W);
   drawHud(ctx, c, W);
