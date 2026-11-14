@@ -286,7 +286,7 @@ export function initGame(getCars) {
     if (!running) return;
     const dt = Math.min(.05, (now - last) / 1000 || 0); last = now;
     if (mode === 'race') {
-      tick(dt); draw(); drawRec();
+      tick(dt); draw(); drawRec(); recProgress(now);
       if (world.done && now - world.doneAt > 450) { running = false; endSequence(); return; }
     } else { updateCrash(dt); draw(); if (crash.impact === 'done') { running = false; return; } }
     raf = nextFrame();
@@ -313,7 +313,7 @@ export function initGame(getCars) {
     try { recorder = new MediaRecorder(new MediaStream(tracks), {mimeType: mime || undefined, videoBitsPerSecond: bps || (W >= 1080 ? 10e6 : 6e6), audioBitsPerSecond: 160000}); }
     catch (e) { toast('Видео жазуды бастау мүмкін болмады: ' + e.message); return false; }
     const chunks = []; recorder.ondataavailable = e => e.data?.size && chunks.push(e.data);
-    rec = {canvas: c, ctx: rctx, recorder, chunks, w: W, h: H, mime: recorder.mimeType || mime || 'video/webm', save: false};
+    rec = {t0: performance.now(), canvas: c, ctx: rctx, recorder, chunks, w: W, h: H, mime: recorder.mimeType || mime || 'video/webm', save: false};
     recorder.onstop = () => { const r = rec; rec = null; setRecIndicator(false); if (r?.save && r.chunks.length) (r.deliver || deliver)(r); };
     recorder.start(250); setRecIndicator(true);
     drawRec();
@@ -326,7 +326,21 @@ export function initGame(getCars) {
   }
   function cancelRecording() { if (rec) { const r = rec; r.save = false; try { r.recorder.stop(); } catch {} rec = null; setRecIndicator(false); } }
   function drawRec() { if (!rec) return; if (card) card(rec.ctx, rec.w, rec.h); else if (world) { drawRace(rec.ctx, rec.w, rec.h, world); overlay?.(rec.ctx, rec.w, rec.h); } }
-  function setRecIndicator(on) { const el = $('recIndicator'); if (el) el.hidden = !on; }
+  function setRecIndicator(on) { const el = $('recIndicator'); if (el) el.hidden = !on; if (!on && !sessionOn) { const b = $('trProg'); if (b) b.hidden = true; } }
+  // Жеке жарыс жазылып жатқанда: пайыз және қалған уақыт (турнирде оны tournament.js көрсетеді)
+  let progAt = 0;
+  function recProgress(now) {
+    if (sessionOn || !rec || !world || now - progAt < 250) return; progAt = now;
+    const w = world, D = w.D, lead = Math.max(...w.cars.map(c => c.st.x)), frac = clamp(lead / D, 0, 1), est0 = 14 * Math.pow(D / 402.34, .75), rh = resultHold, el = (now - rec.t0) / 1000;
+    const raceRemain = w.phase === 'race' ? Math.max(0, (frac > .12 ? w.clock / frac * .85 : est0) - w.clock) : est0;
+    const remain = w.phase === 'intro' ? Math.max(0, 1.6 - w.phaseT) + 2.7 + est0 + 1.5 + rh
+      : w.phase === 'countdown' ? Math.max(0, 2.7 - w.phaseT) + est0 + 1.5 + rh
+      : w.phase === 'race' ? raceRemain + 1.5 + rh
+      : w.phase === 'finish' ? Math.max(0, 1.5 - w.phaseT) + rh : Math.max(0, rh - w.resultT) + .45;
+    const pct = Math.min(99, Math.round(el / (el + remain) * 100)), box = $('trProg');
+    if (!box) return; box.hidden = false; $('trProgFill').style.width = pct + '%';
+    $('trProgText').textContent = `Жазылуда: ${pct}% · қалды ~${Math.floor(remain / 60)}:${String(Math.floor(remain % 60)).padStart(2, '0')}`;
+  }
 
   let lastIds = null, lastBlob = null, autoUploadHook = () => {};
   function deliver(r) {
@@ -462,7 +476,7 @@ export function initGame(getCars) {
   const DEF_NAME = 'Өз Phonk музыкамыз (ішкі, авторлық құқықсыз)';
   const showMusic = name => { $('musicName').textContent = `🎵 ${name || DEF_NAME}`; $('musicClear').hidden = !name; };
   const useDefault = async () => { await audio.setMusicFile(null); showMusic(null); };
-  loadTrack().then(async rec => { if (!rec?.data) return useDefault(); try { await audio.setMusicFile(await rec.data.arrayBuffer()); showMusic(rec.name); } catch { useDefault(); } }, useDefault);
+  loadTrack().then(async rec => { if (rec?.name && /fassounds|sue-phonk/i.test(rec.name)) { await clearTrack(); rec = null; } if (!rec?.data) return useDefault(); try { await audio.setMusicFile(await rec.data.arrayBuffer()); showMusic(rec.name); } catch { useDefault(); } }, useDefault);
   $('musicBtn').onclick = () => $('musicFile').click();
   $('musicFile').onchange = async () => {
     const f = $('musicFile').files[0]; if (!f) return;
@@ -509,11 +523,11 @@ export function initGame(getCars) {
   async function doUpload(interactive) {
     if (!lastBlob || uploading) return;
     if (!YT.getClientId()) { if (!interactive) return; $('ytClient').click(); if (!YT.getClientId()) return; }
-    if (!interactive && !YT.hasToken()) return ytStatus('Бірінші рет «Google аккаунт таңдап жүктеу» түймесін басыңыз, содан кейін келесі видеолар өздігінен жүктеледі.');
+    if (!interactive && !YT.hasToken() && !YT.rememberedAccount()) return ytStatus('Бірінші рет «Google аккаунт таңдап жүктеу» түймесін басыңыз. Бір рет растасаңыз, келесі видеолар сұраусыз жүктеледі.');
     const btn = $('ytAuto'); btn.disabled = true; uploading = true;
     try {
-      ytStatus('Google аккаунт таңдау терезесі ашылды…');
-      const tok = await YT.signIn(interactive && !YT.hasToken()), ch = await YT.channelInfo(tok);
+      if (!YT.hasToken()) ytStatus(YT.rememberedAccount() ? 'Сақталған аккаунтпен кіру…' : 'Google аккаунт таңдау терезесі ашылды…');
+      const tok = await YT.signIn(false), ch = await YT.channelInfo(tok);
       const [title, ...rest] = $('videoMeta').value.split(String.fromCharCode(10)), description = rest.join(String.fromCharCode(10)).trim();
       $('ytBar').hidden = false; $('ytBarFill').style.width = '0%';
       ytStatus(`Арна: «${ch.title}». Жүктеліп жатыр…`);
@@ -525,10 +539,11 @@ export function initGame(getCars) {
       // жадты босату: видео тек YouTube-та қалады
       const vid = $('videoPreview'); if (vid.dataset.url) URL.revokeObjectURL(vid.dataset.url); vid.removeAttribute('src'); vid.load(); vid.dataset.url = ''; $('videoDownload').removeAttribute('href'); lastBlob = null;
       toast('Видео YouTube-қа жүктелді, компьютерде сақталмады.');
-    } catch (e) { ytStatus('❌ ' + (e.message || e) + ' (видео жадта тұр, қайта басып көріңіз)', true); document.dispatchEvent(new CustomEvent('dv:uploadfail', {detail: {error: String(e.message || e)}})); } finally { btn.disabled = false; uploading = false; }
+    } catch (e) { ytStatus('❌ ' + (e.message || e) + ' (видео жадта тұр; «Google аккаунт таңдап жүктеу» түймесін бір рет басыңыз)', true); document.dispatchEvent(new CustomEvent('dv:uploadfail', {detail: {error: String(e.message || e)}})); } finally { btn.disabled = false; uploading = false; }
   }
   let uploading = false;
   $('ytAuto').onclick = () => doUpload(true);
+  $('ytForget')?.addEventListener('click', () => { YT.forgetAccount(); ytStatus('Сақталған аккаунт ұмытылды. Келесі жүктеуде аккаунт қайта таңдалады.'); });
   try { $('ytAutoUp').checked = localStorage.getItem('drivevault-yt-autoup') !== '0'; } catch {}
   $('ytAutoUp').onchange = () => { try { localStorage.setItem('drivevault-yt-autoup', $('ytAutoUp').checked ? '1' : '0'); } catch {} };
   autoUploadHook = () => { if ($('ytAutoUp').checked) doUpload(false); };
