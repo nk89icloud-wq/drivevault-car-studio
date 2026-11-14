@@ -2,8 +2,19 @@
 // Client ID — пайдаланушының өз Google Cloud жобасынан; тек осы браузерде сақталады.
 
 const CID_KEY = 'drivevault-yt-client';
-const SCOPES = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
+const SCOPES = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.email';
+const TOK_KEY = 'drivevault-yt-token', HINT_KEY = 'drivevault-yt-hint', GRANT_KEY = 'drivevault-yt-granted';
+const ls = {
+  get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* жад өшірулі */ } },
+  del: k => { try { localStorage.removeItem(k); } catch { /* жад өшірулі */ } }
+};
 let gsiPromise, token = null, tokenExp = 0;
+// Бір сағат жарамды токен бет қайта ашылса да сақталады (тек осы браузерде)
+try { const t = JSON.parse(ls.get(TOK_KEY) || 'null'); if (t && t.exp > Date.now() + 30000) { token = t.tok; tokenExp = t.exp; } } catch { /* бос */ }
+export const rememberedAccount = () => ls.get(HINT_KEY) || (ls.get(GRANT_KEY) ? '(сақталған аккаунт)' : '');
+/** Сақталған рұқсатты ұмыту (басқа аккаунтқа ауысу үшін) */
+export function forgetAccount() { [TOK_KEY, HINT_KEY, GRANT_KEY].forEach(ls.del); token = null; tokenExp = 0; }
 
 export const hasToken = () => !!token && Date.now() < tokenExp;
 export const getClientId = () => { try { return localStorage.getItem(CID_KEY) || ''; } catch { return ''; } };
@@ -18,15 +29,22 @@ function loadGsi() {
   });
 }
 
-/** Google аккаунт таңдау терезесін ашып, рұқсат алады. forceSelect — әрқашан аккаунт сұрау. */
-export async function signIn(forceSelect = true) {
+/** Алғаш рет аккаунт таңдап рұқсат береді; бұдан кейін сақталған аккаунтпен ешбір сұраусыз кіреді. forceSelect — міндетті түрде қайта таңдату. */
+export async function signIn(forceSelect = false) {
   const client_id = getClientId(); if (!client_id) throw new Error('Алдымен Client ID енгізіңіз');
   if (!forceSelect && token && Date.now() < tokenExp) return token;
   await loadGsi();
+  const granted = !!ls.get(GRANT_KEY) && !forceSelect, hint = ls.get(HINT_KEY) || undefined;
   return new Promise((res, rej) => {
     const tc = google.accounts.oauth2.initTokenClient({
-      client_id, scope: SCOPES, prompt: forceSelect ? 'select_account consent' : '',
-      callback: r => { if (r.error) return rej(new Error(r.error_description || r.error)); token = r.access_token; tokenExp = Date.now() + (r.expires_in - 60) * 1000; res(token); },
+      client_id, scope: SCOPES, prompt: granted ? '' : 'select_account consent', hint,
+      callback: async r => {
+        if (r.error) return rej(new Error(r.error_description || r.error));
+        token = r.access_token; tokenExp = Date.now() + (r.expires_in - 60) * 1000;
+        ls.set(TOK_KEY, JSON.stringify({tok: token, exp: tokenExp})); ls.set(GRANT_KEY, '1');
+        if (!hint || forceSelect) { try { const u = await (await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {headers: {Authorization: `Bearer ${token}`}})).json(); if (u.email) ls.set(HINT_KEY, u.email); } catch { /* email қажет емес */ } }
+        res(token);
+      },
       error_callback: e => rej(new Error(e.type === 'popup_closed' ? 'Терезе жабылды' : e.message || e.type))
     });
     tc.requestAccessToken();
