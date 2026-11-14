@@ -5,6 +5,7 @@ const CID_KEY = 'drivevault-yt-client';
 const SCOPES = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
 let gsiPromise, token = null, tokenExp = 0;
 
+export const hasToken = () => !!token && Date.now() < tokenExp;
 export const getClientId = () => { try { return localStorage.getItem(CID_KEY) || ''; } catch { return ''; } };
 export const setClientId = v => { try { localStorage.setItem(CID_KEY, v.trim()); } catch {} token = null; };
 
