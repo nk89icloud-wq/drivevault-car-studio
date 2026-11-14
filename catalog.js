@@ -28,3 +28,13 @@ export function estimateQuarterMile(car) {
   return +(8.15 + Math.sqrt(ratio) * 2.45).toFixed(2);
 }
 export function findCar(id) { return CARS.find(c => c.id === Number(id)); }
+
+/** Шығарылған жылына қарай көлік параметрлері өзгереді (2026 — базалық). Жас ұлғайған сайын қуат төмендейді, салмақ артады, 0–100 баяулайды. */
+export function atYear(car, year) {
+  const age = Math.max(0, Math.min(12, 2026 - (Number(year) || 2026)));
+  if (!age) return car;
+  const ev = car.type === 'Электр', hpK = 1 - (ev ? .028 : .013) * age, wK = 1 + .004 * age;
+  const hp = Math.max(30, Math.round(car.hp * hpK)), weight = Math.round(car.weight * wK);
+  const zero = +(car.zero * Math.pow((car.hp / car.weight) / (hp / weight), .62)).toFixed(1);
+  return {...car, year: Number(year), hp, torque: Math.round(car.torque * (1 - .01 * age)), weight, zero};
+}
