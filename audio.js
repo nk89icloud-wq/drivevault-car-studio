@@ -67,14 +67,15 @@ export function createAudio() {
     return {out, lp, o, ex, ev};
   }
 
-  function setup(specs) {
+  function setup(specs, keepMusic) {
     if (!ensure()) return;
-    teardown();
-    voices = specs.map((s, i) => makeVoice(i === 0 ? -.55 : .55, s.ev));
+    teardown(keepMusic);
+    const n = specs.length;
+    voices = specs.map((s, i) => makeVoice(n > 2 ? -.8 + 1.6 * i / (n - 1) : (i === 0 ? -.55 : .55), s.ev));
   }
 
-  function teardown() {
-    stopMusic(.3);
+  function teardown(keepMusic) {
+    if (!keepMusic) stopMusic(.3);
     voices.forEach(v => { try { v.o.forEach(([osc]) => osc.stop()); v.out.disconnect(); v.ex.g.disconnect(); v.ex.src.stop(); } catch {} });
     voices = [];
   }
