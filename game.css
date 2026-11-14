@@ -50,7 +50,7 @@
 .cal-month h3 { margin: 0 0 8px; font-size: 1rem; }
 .cal-week, .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .cal-week span { text-align: center; font-size: .7rem; opacity: .6; }
-.cal-day { position: relative; min-height: 78px; padding: 5px 4px 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: inherit; text-align: left; font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.cal-day { position: relative; min-height: 78px; gap: 2px; padding: 5px 4px 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: inherit; text-align: left; font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
 .cal-day b { font-size: .78rem; }
 .cal-day span { font-size: .6rem; line-height: 1.1; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-day em { font-size: .55rem; opacity: .5; font-style: normal; }
@@ -71,3 +71,17 @@
 .yt-bar i { display: block; height: 100%; width: 0; background: #28c864; transition: width .2s; }
 .yt-status { margin: 0; font-size: .85rem; } .yt-status.err { color: #ff7a7a; } .yt-status a { color: #6fd0ff; }
 .yt-manual { margin-top: 6px; } .yt-manual summary { cursor: pointer; font-size: .85rem; opacity: .8; }
+.yt-check { display: flex; gap: 8px; align-items: flex-start; font-size: .82rem; line-height: 1.3; }
+.yt-check input { margin-top: 3px; }
+.music-pick { display: grid; gap: 4px; } .music-row { display: flex; gap: 6px; } .music-pick small { font-size: .72rem; opacity: .7; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cal-pair { font: inherit; font-size: .58rem; line-height: 1.15; text-align: left; color: inherit; cursor: pointer; padding: 2px 3px; border-radius: 5px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-pair em { opacity: .5; font-style: normal; }
+.cal-pair:hover { border-color: #fff8; }
+.cal-pair.rec { background: rgba(255,190,30,.28); border-color: #ffbe1e; }
+.cal-pair.up { background: rgba(40,200,100,.32); border-color: #28c864; }
+.cal-day.off .cal-pair { display: none; }
+
+.car-search { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 0 12px; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: rgba(255,255,255,.05); }
+.car-search input { flex: 1; min-width: 0; padding: 10px 0; background: none; border: 0; outline: 0; color: inherit; font: inherit; }
+.car-search:focus-within { border-color: #4cc3ff; }
