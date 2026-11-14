@@ -1,9 +1,9 @@
-import {makeSpec, newState, step, vehiclePerformance, clamp, lerp, KMH100, QUARTER_MILE} from './physics.js';
-import {createAudio} from './audio.js';
-import * as YT from './youtube.js';
-import {saveTrack, loadTrack, clearTrack} from './music.js';
-import {loadCarPhoto, cachedPhoto} from './photos.js';
-import {drawRace, LANES, pickPaints} from './render.js';
+import {makeSpec, newState, step, vehiclePerformance, clamp, lerp, KMH100, QUARTER_MILE} from './physics.js?v=19';
+import {createAudio} from './audio.js?v=19';
+import * as YT from './youtube.js?v=19';
+import {saveTrack, loadTrack, clearTrack} from './music.js?v=19';
+import {loadCarPhoto, cachedPhoto} from './photos.js?v=19';
+import {drawRace, LANES, pickPaints} from './render.js?v=19';
 
 export {vehiclePerformance};
 
@@ -456,7 +456,8 @@ export function initGame(getCars) {
   }
 
   addEventListener('keydown', e => {
-    if (e.repeat) return;
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; // жазып жатқанда H/F іске қосылмасын
     if (e.code === 'KeyH') $('gameHudToggle').click();
     if (e.code === 'KeyF') $('gameFullscreen').click();
   });
