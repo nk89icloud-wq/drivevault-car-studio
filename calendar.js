@@ -95,6 +95,7 @@ export function initCalendar({select, byId, runOne, signIn}) {
   document.getElementById('calReset').onclick = () => { if (confirm('Күнтізбедегі барлық белгілерді тазарту керек пе?')) { st.status = {}; save(st); render(); } };
 
   const mark = (status, ids) => {
+    if (ids === 'skip') return;
     let k = ids ? find(ids[0], ids[1]) : -1; if (k < 0) k = st.current ?? -1; if (k < 0) return;
     if (st.status[k] === 'up' && status === 'rec') return; // жасылды төмендетпейміз
     st.status[k] = status; save(st); render();
