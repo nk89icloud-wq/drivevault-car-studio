@@ -136,7 +136,7 @@ function init() {
   initCalendar({byId: findCar,
     signIn: async () => {
       if (!YT.getClientId()) { $('ytClient').click(); if (!YT.getClientId()) throw new Error('Client ID жоқ'); }
-      $('ytAutoUp').checked = true; await YT.signIn(true);
+      $('ytAutoUp').checked = true; await YT.signIn(false);
     },
     runOne: () => new Promise((res, rej) => {
       const clean = () => { clearTimeout(tm); document.removeEventListener('dv:uploaded', done); document.removeEventListener('dv:uploadfail', fail); };
