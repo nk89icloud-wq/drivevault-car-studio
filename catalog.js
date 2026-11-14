@@ -1,3 +1,4 @@
+import {EXTRA} from './catalog-extra.js';
 export const CARS = [
   ['Toyota','Supra GR',382,500,4.1,1540,'Спорткар'],['Toyota','Camry',301,480,5.8,1625,'Седан'],['Toyota','Land Cruiser 300',409,1100,6.7,2585,'SUV'],['Toyota','GR86',228,250,6.3,1275,'Купе'],
   ['BMW','M4 Competition',503,650,3.9,1725,'Купе'],['BMW','M5 CS',627,750,3.0,1825,'Седан'],['BMW','X5 M',617,750,3.8,2385,'SUV'],['BMW','i7 M70',650,1100,3.7,2770,'Электр'],
@@ -16,8 +17,9 @@ export const CARS = [
   ['Lexus','LFA',552,480,3.7,1480,'Суперкар'],['Lexus','LC 500',471,540,4.4,1931,'Купе'],['Lexus','LX 600',409,650,6.9,2670,'SUV'],['Lexus','RZ 450e',308,435,5.0,2135,'Электр'],
   ['Honda','Civic Type R',315,420,5.4,1430,'Хэтчбек'],['Honda','NSX Type S',600,667,2.9,1750,'Суперкар'],['Honda','Accord Hybrid',204,335,6.7,1585,'Седан'],['Honda','CR-V Hybrid',204,335,7.6,1740,'SUV'],
   ['Subaru','WRX STI',310,393,5.0,1540,'Седан'],['Subaru','BRZ tS',228,250,6.1,1290,'Купе'],['Subaru','Outback XT',260,375,6.1,1765,'Универсал'],['Subaru','Solterra',215,337,6.5,2040,'Электр'],
-  ['Mazda','MX-5 Miata',181,205,5.7,1065,'Родстер'],['Mazda','Mazda3 Turbo',250,434,5.6,1535,'Хэтчбек'],['Mazda','CX-90 Turbo S',340,500,6.3,2220,'SUV'],['Mazda','RX-7 Spirit R',276,314,5.1,1270,'Купе']
-].map((c, id) => ({id, make:c[0], model:c[1], hp:c[2], torque:c[3], zero:c[4], weight:c[5], type:c[6]}));
+  ['Mazda','MX-5 Miata',181,205,5.7,1065,'Родстер'],['Mazda','Mazda3 Turbo',250,434,5.6,1535,'Хэтчбек'],['Mazda','CX-90 Turbo S',340,500,6.3,2220,'SUV'],['Mazda','RX-7 Spirit R',276,314,5.1,1270,'Купе'],
+  ['Audi','A6 55 TFSI 2026',335,500,5.0,1925,'Седан']
+].concat(EXTRA).filter((c, i, a) => a.findIndex(d => d[0] === c[0] && d[1] === c[1]) === i).map((c, id) => ({id, make:c[0], model:c[1], hp:c[2], torque:c[3], zero:c[4], weight:c[5], type:c[6], drive:c[7]}));
 
 export const MAKES = [...new Set(CARS.map(c => c.make))];
 export const fullName = car => `${car.make} ${car.model}`;
