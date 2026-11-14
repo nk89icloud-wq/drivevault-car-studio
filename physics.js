@@ -25,7 +25,7 @@ const key = car => `${car.make} ${car.model}`;
 const MID_ENGINE = new Set(['Chevrolet Corvette Z06', 'Lamborghini Huracan STO', 'Ferrari 296 GTB', 'McLaren 750S', 'McLaren Artura', 'McLaren GT', 'McLaren Senna', 'Porsche 718 Cayman GT4 RS']);
 const AWD = new Set([
   'Toyota Land Cruiser 300', 'BMW M4 Competition', 'BMW M5 CS', 'BMW X5 M', 'Mercedes-Benz AMG GT 63', 'Mercedes-Benz C 63 S E Performance', 'Mercedes-Benz G 63 AMG',
-  'Audi RS 6 Avant', 'Audi RS 7 Performance', 'Audi R8 V10 Performance', 'Porsche 911 Turbo S', 'Porsche Cayenne Turbo GT', 'Nissan GT-R Nismo', 'Nissan Patrol Nismo',
+  'Audi A6 55 TFSI 2026', 'Audi RS 6 Avant', 'Audi RS 7 Performance', 'Audi R8 V10 Performance', 'Porsche 911 Turbo S', 'Porsche Cayenne Turbo GT', 'Nissan GT-R Nismo', 'Nissan Patrol Nismo',
   'Ford F-150 Raptor R', 'Ford Bronco Raptor', 'Chevrolet Tahoe RST', 'Lamborghini Revuelto', 'Lamborghini Urus Performante', 'Lamborghini Temerario',
   'Ferrari SF90 Stradale', 'Ferrari Purosangue', 'Hyundai Santa Fe', 'Hyundai Palisade', 'Kia Stinger GT', 'Kia Telluride', 'Lexus LX 600', 'Honda NSX Type S',
   'Honda CR-V Hybrid', 'Subaru WRX STI', 'Subaru Outback XT', 'Mazda Mazda3 Turbo', 'Mazda CX-90 Turbo S'
@@ -37,6 +37,7 @@ export const isEV = car => car.type === 'Электр' || car.model === 'Cybertr
 
 export function drivetrainOf(car) {
   if (isEV(car)) return 'AWD';
+  if (car.drive) return {F: 'FWD', R: 'RWD', A: 'AWD'}[car.drive];
   const k = key(car);
   if (AWD.has(k)) return 'AWD';
   if (FWD.has(k)) return 'FWD';
