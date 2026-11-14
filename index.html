@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=3">
-  <link rel="stylesheet" href="game.css?v=12">
+  <link rel="stylesheet" href="game.css?v=16">
 </head>
 <body>
   <header class="topbar">
@@ -40,6 +40,7 @@
         <label>Тақырып (көліктер)<select id="trTheme"></select></label>
         <label>Жол ұзақтығы<select id="trDist"><option value="201.17">201 м · ⅛ миля</option><option value="402.34" selected>402 м · ¼ миля</option><option value="804.67">805 м · ½ миля</option><option value="1000">1000 м</option></select></label>
         <label>Сапасы<select id="trQuality"><option value="720" selected>720p (жеңіл, жылдам жүктеледі)</option><option value="1080">1080p (ауыр, ~300 МБ)</option></select></label>
+        <label>Тіл (видео мәтіні)<select id="trLang"><option value="en" selected>English</option><option value="ru">Русский</option><option value="kk">Қазақша</option></select></label>
         <button class="button ghost compact" id="trShuffle" type="button">🔀 ҚАЙТА ТАҢДАУ</button>
         <button class="button primary" id="trStart" type="button">🏆 ТУРНИР ЖАСАП, YOUTUBE-ҚА ЖҮКТЕУ</button>
         <button class="button ghost compact" id="trStop" type="button" hidden>■ ТОҚТАТУ</button>
@@ -78,6 +79,7 @@
       <div class="game-shell" id="gameShell">
         <div class="game-toolbar">
           <div class="mode-tabs" role="tablist"><button class="mode-tab active" id="raceMode" role="tab">🏁 ЖАРЫС</button><button class="mode-tab" id="crashMode" role="tab">💥 КРАШ-ТЕСТ</button></div>
+          <div class="tr-progress" id="trProg" hidden><div class="tr-progress-bar"><i id="trProgFill"></i></div><span id="trProgText"></span></div>
           <div class="video-tools"><span class="rec-indicator" id="recIndicator" hidden><i></i>REC</span><button id="gameHudToggle" title="Интерфейсті жасыру/көрсету (H)">🎥 HUD</button><button id="gameFullscreen" title="Толық экран (F)">⛶ FULL</button><div class="game-status"><i></i><span id="gameStatus">ДАЙЫН</span></div></div>
         </div>
         <div class="race-options" id="raceOptions">
@@ -117,7 +119,7 @@
               <label class="yt-check"><input type="checkbox" id="ytAutoUp" checked> Видео жазылған соң YouTube-қа өзі жүктелсін (компьютерге сақталмайды, жадта орын алмайды)</label>
               <div class="yt-bar" id="ytBar" hidden><i id="ytBarFill"></i></div>
               <p id="ytStatus" class="yt-status"></p>
-              <button class="small-link" id="ytClient" type="button">⚙ Client ID баптау</button>
+              <button class="small-link" id="ytClient" type="button">⚙ Client ID баптау</button> <button class="small-link" id="ytForget" type="button">↺ Басқа аккаунт таңдау</button>
             </div>
             <details class="yt-manual"><summary>Қолмен жүктеу (аккаунт тізімі)</summary>
             <div class="yt-account">
