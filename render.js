@@ -346,16 +346,44 @@ function drawCar(ctx, c, W, i) {
     const P = (xm, f, Y) => proj(c, X + xm, rear + L * f, Y);
     const dark = shade(col, -.45), mid = shade(col, -.15), lite = shade(col, .22);
     const wrap = (pts, a, b, ca, cb) => { const g2 = ctx.createLinearGradient(a.x, a.y, b.x, b.y); g2.addColorStop(0, ca); g2.addColorStop(1, cb); poly(pts, g2); };
-    // қапталы (орталыққа қараған жағы)
-    const sgn = X < 0 ? 1 : -1, sx = sgn * ww;
-    poly([P(sx, 0, .2), P(sx, 1, .2), P(sx, 1, Yd * .96), P(sx, 0, Yd)], dark);
-    // дене үсті (жүк салғыш + капот)
-    const b0 = P(0, 0, Yd), b1 = P(0, 1, Yd * .96);
-    if (b0 && b1) wrap([P(-ww, 0, Yd), P(ww, 0, Yd), P(ww, 1, Yd * .96), P(-ww, 1, Yd * .96)], b0, b1, lite, mid);
-    // центрлік жарық жолағы
-    ctx.save(); ctx.globalAlpha = .35; poly([P(-ww * .5, .02, Yd), P(-ww * .12, .02, Yd), P(-ww * .12, .98, Yd * .96), P(-ww * .5, .98, Yd * .96)], 'rgba(255,255,255,.55)'); ctx.restore();
-    // фара орны (алдыңғы ұшы)
-    poly([P(-ww, .985, Yd * .94), P(ww, .985, Yd * .94), P(ww, 1, Yd * .9), P(-ww, 1, Yd * .9)], 'rgba(0,0,0,.45)');
+    // ---- дене: профиль бойынша станциялар (жоспардағы дөңгелектенген силуэт + капот иілуі)
+    const sm = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+    const hwAt = f => ww * (f < .1 ? .9 + .1 * sm(f / .1) : f > .8 ? 1 - .26 * sm((f - .8) / .2) - (f > .96 ? .22 * sm((f - .96) / .04) : 0) : 1);
+    const yAt = f => Yd * (f < .62 ? 1 : 1 - .1 * sm((f - .62) / .38));
+    const N = 24, sgn = X < 0 ? 1 : -1, sx = f => sgn * hwAt(f);
+    // қапталы (орталыққа қараған жағы) + арқа
+    for (let k = 0; k < N; k++) {
+      const f0 = k / N, f1 = (k + 1) / N, q = [P(sx(f0), f0, .2), P(sx(f1), f1, .2), P(sx(f1), f1, yAt(f1) * .97), P(sx(f0), f0, yAt(f0) * .97)];
+      if (q.some(v => !v)) continue;
+      const g2 = ctx.createLinearGradient(0, q[3].y, 0, q[0].y); g2.addColorStop(0, shade(col, -.25)); g2.addColorStop(.5, shade(col, -.5)); g2.addColorStop(1, shade(col, -.75));
+      poly(q, g2); ctx.strokeStyle = g2; ctx.lineWidth = 1; ctx.stroke();
+    }
+    // доңғалақтар (көрінетін жағы)
+    [.16, .8].forEach(fc => {
+      const r = .34, f0 = fc - r / L * .9, f1 = fc + r / L * .9, tire = [P(sx(fc), f0, .02), P(sx(fc), f1, .02), P(sx(fc), f1, r * 1.55), P(sx(fc), f0, r * 1.55)];
+      poly(tire, '#0b0c0e');
+      const rr0 = r * .62, rim = [P(sx(fc), fc - rr0 / L * .9, .1), P(sx(fc), fc + rr0 / L * .9, .1), P(sx(fc), fc + rr0 / L * .9, r * 1.2), P(sx(fc), fc - rr0 / L * .9, r * 1.2)];
+      if (rim.every(v => v)) { const g3 = ctx.createLinearGradient(rim[0].x, rim[0].y, rim[2].x, rim[2].y); g3.addColorStop(0, '#d9dee2'); g3.addColorStop(.5, '#7d848a'); g3.addColorStop(1, '#30343a'); poly(rim, g3); }
+    });
+    // дене үсті: қисық беттің градиенті (жиегі қараңғы, ортасы жарқын)
+    for (let k = N - 1; k >= 0; k--) {
+      const f0 = k / N, f1 = (k + 1) / N, fm = (f0 + f1) / 2, y0 = yAt(f0), y1 = yAt(f1);
+      const q = [P(-hwAt(f0), f0, y0), P(hwAt(f0), f0, y0), P(hwAt(f1), f1, y1), P(-hwAt(f1), f1, y1)];
+      if (q.some(v => !v)) continue;
+      const mL = P(-hwAt(fm), fm, (y0 + y1) / 2), mR = P(hwAt(fm), fm, (y0 + y1) / 2); if (!mL || !mR) continue;
+      const g4 = ctx.createLinearGradient(mL.x, mL.y, mR.x, mR.y);
+      g4.addColorStop(0, shade(col, -.4)); g4.addColorStop(.18, shade(col, .12)); g4.addColorStop(.38, shade(col, .3)); g4.addColorStop(.62, col); g4.addColorStop(.88, shade(col, -.22)); g4.addColorStop(1, shade(col, -.5));
+      poly(q, g4); ctx.strokeStyle = g4; ctx.lineWidth = 1; ctx.stroke();
+      const sky = (fm > .62 && fm < .98) ? .16 * Math.sin((fm - .62) / .36 * Math.PI) : (fm < .1 ? .08 : 0);
+      if (sky > 0) { ctx.save(); ctx.globalAlpha = sky; poly(q, '#fff'); ctx.restore(); }
+    }
+    // капот сызығы + бүйір сызықтары
+    ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = Math.max(1, c.f * .012 / p.d);
+    [-1, 1].forEach(s => { ctx.beginPath(); let st0 = false; for (let k = 0; k <= N; k++) { const f = k / N, v = P(s * hwAt(f) * .62, f, yAt(f)); if (!v) continue; st0 ? ctx.lineTo(v.x, v.y) : ctx.moveTo(v.x, v.y); st0 = true; } ctx.stroke(); });
+    ctx.restore();
+    // алдыңғы ұшы: бампер, торы, фаралар
+    poly([P(-hwAt(1) * .92, .975, yAt(1) * .86), P(hwAt(1) * .92, .975, yAt(1) * .86), P(hwAt(1) * .9, 1, yAt(1) * .55), P(-hwAt(1) * .9, 1, yAt(1) * .55)], '#0a0b0d');
+    [-1, 1].forEach(s => poly([P(s * hwAt(.95) * .96, .93, yAt(.95) * .97), P(s * hwAt(.95) * .52, .95, yAt(.95) * .97), P(s * hwAt(1) * .5, 1, yAt(1) * .8), P(s * hwAt(1) * .9, 1, yAt(1) * .8)], '#e8eef3'));
     // кабина: бағандар, әйнектер, төбе
     const gl = (ptsA, ptsB) => { const q = [...ptsA, ...ptsB]; const a = q[0], b = q[2]; if (a && b) wrap(q, a, b, '#2d3d4c', '#080c11'); };
     poly([P(-bwm, S[0], Yd), P(-twm, S[1], roof), P(-twm, S[2], roof), P(-bwm, S[3], Yd)], dark);
@@ -366,6 +394,8 @@ function drawCar(ctx, c, W, i) {
     const r0 = P(0, S[1], roof), r1 = P(0, S[2], roof);
     if (r0 && r1) wrap([P(-twm, S[1], roof), P(twm, S[1], roof), P(twm, S[2], roof), P(-twm, S[2], roof)], r0, r1, lite, mid);
     ctx.save(); ctx.globalAlpha = .4; poly([P(-twm * .7, S[1] + .02, roof), P(-twm * .15, S[1] + .02, roof), P(-twm * .15, S[2] - .02, roof), P(-twm * .7, S[2] - .02, roof)], 'rgba(255,255,255,.6)'); ctx.restore();
+    // айналар
+    [-1, 1].forEach(s => poly([P(s * (bwm + .02), S[3] - .03, Yd + .12), P(s * (bwm + .2), S[3] - .02, Yd + .12), P(s * (bwm + .2), S[3] - .06, Yd + .02), P(s * (bwm + .02), S[3] - .05, Yd + .02)], shade(col, -.3)));
     // артқы жағы
     ctx.translate(p.x, p.y + jitter); ctx.scale(1, 1 - squat);
     drawRearCar(ctx, wpx, hpx, {elev: true, color: col, cat: dim[2], ev: spec.ev, hp: spec.car.hp, braking: st.braking && st.v > 1, plate: spec.car.model.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 7)});
