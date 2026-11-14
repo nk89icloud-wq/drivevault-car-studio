@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=3">
-  <link rel="stylesheet" href="game.css?v=6">
+  <link rel="stylesheet" href="game.css?v=10">
 </head>
 <body>
   <header class="topbar">
@@ -35,16 +35,18 @@
 
     <section class="section" id="calendar">
       <div class="section-heading"><div><p class="eyebrow"><span></span> Жоспар</p><h2>Видео күнтізбесі</h2></div><p>Күнді бас — жұп өзі таңдалады. Жазылған видео сары, YouTube-қа жүктелген жасыл болады.</p></div>
-      <div class="cal-bar"><label>Бастау күні<input type="date" id="calStart"></label><button class="button primary compact" id="calNext" type="button">▶ КЕЛЕСІ ЖОСПАРЛАНҒАН ЖҰП</button><button class="button ghost compact" id="calReset" type="button">БЕЛГІЛЕРДІ ТАЗАЛАУ</button><span class="cal-legend"><i class="plan"></i>жоспар <i class="rec"></i>жазылды <i class="up"></i>жүктелді</span></div>
+      <div class="cal-bar"><label>Бастау күні<input type="date" id="calStart"></label><label>Күніне видео<select id="calPer"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label><button class="button primary compact" id="calNext" type="button">▶ КЕЛЕСІ ЖОСПАРЛАНҒАН ЖҰП</button><button class="button primary compact" id="calBatch" type="button">⚡ БҮГІНГІ ВИДЕОЛАРДЫ АВТОМАТ ЖАСАУ ЖӘНЕ ЖҮКТЕУ</button><button class="button ghost compact" id="calReset" type="button">БЕЛГІЛЕРДІ ТАЗАЛАУ</button><span class="cal-legend"><i class="plan"></i>жоспар <i class="rec"></i>жазылды <i class="up"></i>жүктелді</span></div>
       <p class="cal-stats" id="calStats"></p>
       <div class="cal-grid" id="calendarGrid"></div>
     </section>
 
     <section class="section studio" id="studio">
       <div class="section-heading"><div><p class="eyebrow"><span></span> Гараж</p><h2>Екі көлікті таңда</h2></div><p>Сипаттамаларын салыстыр, сосын тректе сынап көр.</p></div>
+      <datalist id="carNames"></datalist>
       <div class="selectors">
         <article class="car-panel" data-side="A">
           <div class="panel-top"><span class="slot blue">A</span><span>БІРІНШІ КӨЛІК</span><button class="small-link open-catalog" data-target="A">Каталогтан таңдау</button></div>
+          <label class="car-search"><span>⌕</span><input id="findA" list="carNames" type="search" placeholder="Іздеу: жазып табыңыз (мыс. Camry, BYD, Zeekr)" autocomplete="off"></label>
           <div class="select-row"><label>Марка<select id="makeA"></select></label><label>Модель<select id="modelA"></select></label><label>Жылы<select id="yearA"></select></label></div>
           <div class="car-visual blue-car" aria-hidden="true"><div class="car-glow"></div><div class="car-shape"><i class="window"></i><i class="wheel w1"></i><i class="wheel w2"></i><i class="light"></i></div><img class="car-photo" id="photoA" alt="" hidden><div class="photo-state" id="stateA"></div><strong id="visualA"></strong><a class="photo-credit" id="creditA" target="_blank" rel="noopener" hidden></a></div>
           <div class="spec-grid" id="specA"></div>
@@ -52,6 +54,7 @@
         <button class="swap" id="swap" aria-label="Көліктердің орнын ауыстыру">⇄</button>
         <article class="car-panel" data-side="B">
           <div class="panel-top"><span class="slot amber">B</span><span>ЕКІНШІ КӨЛІК</span><button class="small-link open-catalog" data-target="B">Каталогтан таңдау</button></div>
+          <label class="car-search"><span>⌕</span><input id="findB" list="carNames" type="search" placeholder="Іздеу: жазып табыңыз (мыс. Camry, BYD, Zeekr)" autocomplete="off"></label>
           <div class="select-row"><label>Марка<select id="makeB"></select></label><label>Модель<select id="modelB"></select></label><label>Жылы<select id="yearB"></select></label></div>
           <div class="car-visual amber-car" aria-hidden="true"><div class="car-glow"></div><div class="car-shape"><i class="window"></i><i class="wheel w1"></i><i class="wheel w2"></i><i class="light"></i></div><img class="car-photo" id="photoB" alt="" hidden><div class="photo-state" id="stateB"></div><strong id="visualB"></strong><a class="photo-credit" id="creditB" target="_blank" rel="noopener" hidden></a></div>
           <div class="spec-grid" id="specB"></div>
@@ -66,6 +69,7 @@
         <div class="race-options" id="raceOptions">
           <label>Қашықтық<select id="raceDistance"><option value="201.17">201 м · ⅛ миля</option><option value="402.34" selected>402 м · ¼ миля</option><option value="804.67">805 м · ½ миля</option><option value="1000">1000 м</option></select></label>
           <label>Видео пішімі<select id="recFormat"><option value="short1080" selected>YouTube Shorts · 9:16 · 1080×1920</option><option value="short720">Shorts · 9:16 · 720×1280 (жеңіл)</option><option value="wide1080">Кең · 16:9 · 1920×1080</option></select></label>
+          <label class="music-pick">Музыка<span class="music-row"><input type="file" id="musicFile" accept="audio/*" hidden><button class="button ghost compact" id="musicBtn" type="button">🎵 Өз музыкамды таңдау</button><button class="button ghost compact" id="musicClear" type="button" hidden>✕</button></span><small id="musicName">Ішкі музыка қолданылады</small></label>
           <label>Тіл<select id="raceLang"><option value="kk" selected>Қазақша</option><option value="ru">Русский</option><option value="en">English</option></select></label>
         </div>
         <div class="game-stage" id="gameStage">
@@ -87,15 +91,16 @@
           <div class="video-side">
             <h3>Shorts видеосы дайын</h3>
             <p id="videoInfo"></p>
-            <a class="button primary" id="videoDownload" href="#" download>⬇ ВИДЕОНЫ ЖҮКТЕУ</a>
+            <a class="button ghost compact" id="videoDownload" href="#" download>⬇ компьютерге сақтау (міндетті емес)</a>
             <textarea id="videoMeta" rows="9" readonly aria-label="YouTube атауы мен сипаттамасы"></textarea>
             <div class="video-actions"><button class="button ghost compact" id="copyMeta">АТАУ + СИПАТТАМАНЫ КӨШІРУ</button></div>
             <div class="yt-auto">
               <h4>YouTube-қа тікелей жүктеу</h4>
               <div class="yt-row">
-                <label>Көрінуі<select id="ytPrivacy"><option value="private" selected>Жеке (алдымен тексеріп аламын)</option><option value="unlisted">Сілтемесі бар адамдарға</option><option value="public">Ашық</option></select></label>
+                <label>Көрінуі<select id="ytPrivacy"><option value="private">Жеке (алдымен тексеріп аламын)</option><option value="unlisted">Сілтемесі бар адамдарға</option><option value="public" selected>Ашық</option></select></label>
                 <button class="button primary" id="ytAuto" type="button">🔐 GOOGLE АККАУНТ ТАҢДАП ЖҮКТЕУ</button>
               </div>
+              <label class="yt-check"><input type="checkbox" id="ytAutoUp" checked> Видео жазылған соң YouTube-қа өзі жүктелсін (компьютерге сақталмайды, жадта орын алмайды)</label>
               <div class="yt-bar" id="ytBar" hidden><i id="ytBarFill"></i></div>
               <p id="ytStatus" class="yt-status"></p>
               <button class="small-link" id="ytClient" type="button">⚙ Client ID баптау</button>
