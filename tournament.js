@@ -1,8 +1,8 @@
 // Ұзақ видео: 8 көліктік турнир (чвертьфинал → жартылай финал → финал), бір видеоға жазылады, YouTube-қа ашық жүктеледі.
 // Әр көліктің өз «ерекшелігі» бар (ең күшті, ең жеңіл, электр момент...), карточкалар ағылшынша (АҚШ аудиториясы үшін).
-import {CARS, fullName, atYear, estimateQuarterMile} from './catalog.js';
-import {drivetrainOf, isEV} from './physics.js';
-import {loadCarPhoto, cachedPhoto} from './photos.js';
+import {CARS, fullName, atYear, estimateQuarterMile} from './catalog.js?v=19';
+import {drivetrainOf, isEV} from './physics.js?v=19';
+import {loadCarPhoto, cachedPhoto} from './photos.js?v=19';
 
 // Фото: уақыт машинасында «(2026)» жұрнағын алып тастаймыз
 const photoKey = c => ({...c, model: String(c.model).replace(/ \(\d{4}\)$/, '')});
@@ -225,6 +225,26 @@ function roundCard(title, sub) {
   });
 }
 
+/** Видео соңы: жазылу + коментке көлік атын жазу + келесі видео сұрағы (EN + RU), толық экран. */
+function outroCard(dur = 8) {
+  const items = [
+    ['🔔', 'SUBSCRIBE TO THE CHANNEL', "Don't miss the next videos!", 'ПОДПИШИСЬ НА КАНАЛ', 'Не пропусти другие видео!', '#ff4d4d'],
+    ['💬', 'WANT OTHER CARS TO RACE?', 'Write the car names in the comments!', 'ХОТИТЕ ДРУГИЕ МАШИНЫ?', 'Напишите названия в комментариях!', '#4cc3ff'],
+    ['❓', 'WHICH CARS IN THE NEXT VIDEO?', "Tell us - we'll put them to the test!", 'КАКИЕ МАШИНЫ В СЛЕДУЮЩЕМ ВИДЕО?', 'Пишите — мы проверим их в гонке!', '#ffb020']
+  ];
+  return makeCard(dur, (ctx, t) => {
+    items.forEach(([ic, en1, en2, ru1, ru2, col], i) => {
+      const a = Math.min(1, Math.max(0, t - .25 - i * .55) / .45), y = 90 + i * 330;
+      ctx.save(); ctx.globalAlpha *= a; ctx.translate((1 - a) * 90, 0);
+      fill(ctx, 130, y, 1660, 290, 28, '#ffffff12'); fill(ctx, 130, y, 16, 290, 8, col);
+      text(ctx, ic, 270, y + 150, 120, {a: 'center'});
+      text(ctx, en1, 400, y + 70, 56, {w: 900, c: col, max: 1330}); text(ctx, en2, 400, y + 132, 42, {w: 700, max: 1330});
+      text(ctx, ru1, 400, y + 206, 50, {w: 900, c: col, max: 1330}); text(ctx, ru2, 400, y + 262, 38, {w: 700, c: '#cfd6e6', max: 1330});
+      ctx.restore();
+    });
+  });
+}
+
 function champCard(win, tr, finalTime, run, label = 'TOURNAMENT CHAMPION') {
   return makeCard(9.5, (ctx, t) => {
     for (let i = 0; i < 70; i++) { const px = (i * 271) % 1920, py = ((t * (120 + (i % 7) * 40) + i * 97) % 1200) - 60; ctx.save(); ctx.fillStyle = COLORS[i % 8]; ctx.globalAlpha *= .85; ctx.translate(px, py); ctx.rotate(t * 3 + i); ctx.fillRect(-9, -5, 18, 10); ctx.restore(); }
@@ -330,7 +350,7 @@ export function initTournament({game, YT}) {
   }
   function showPreview() {
     const tr = traitsOf(lineup), time = fmtSel.value === 'time';
-    prev.innerHTML = lineup.map((c, i) => `<li style="border-color:${tr[i].color}"><input class="tr-slot" data-i="${i}" list="carNames" value="${fullName(c).replace(/"/g, '&quot;')}" ${time && i ? 'disabled' : ''} aria-label="Көлік ${i + 1}"><span>${c.hp} а.к. · ${c.weight} кг · ${c.zero} с</span><em>${tr[i].title}</em></li>`).join('');
+    prev.innerHTML = lineup.map((c, i) => { const off = time && i ? 'disabled' : ''; return `<li style="border-color:${tr[i].color}"><div class="tr-row"><input class="tr-slot" data-i="${i}" list="carNames" value="${fullName(c).replace(/"/g, '&quot;')}" ${off} aria-label="Көлік ${i + 1}" placeholder="Атын жазыңыз"><button class="tr-open" type="button" data-i="${i}" ${off} title="Толық тізімді ашу">▾</button></div><span>${c.hp} а.к. · ${c.weight} кг · ${c.zero} с</span><em>${tr[i].title}</em></li>`; }).join('');
   }
   function fresh() {
     if (fmtSel.value === 'time') {
@@ -340,14 +360,30 @@ export function initTournament({game, YT}) {
     } else lineup = pickEight(themeSel.value).map(c => atYear(c, 2026));
     showPreview();
   }
-  prev.onchange = e => {
-    const inp = e.target.closest('.tr-slot'); if (!inp) return; const i = +inp.dataset.i, c = byName(inp.value);
-    if (!c) { say('Табылмады: ' + inp.value, true); showPreview(); return; }
+  function applySlot(i, c, shown) {
+    if (!c) { say('Табылмады: ' + shown, true); showPreview(); return; }
     if (fmtSel.value === 'time') { if (i === 0) lineup = timeCars(c); }
     else if (lineup.some((x, k) => k !== i && x.id === c.id)) { say(`${fullName(c)} тізімде бар`, true); showPreview(); return; }
     else lineup[i] = atYear(c, 2026);
     say(''); showPreview();
-  };
+  }
+  // жазғанда: толық атын жазып, Enter/басқа жерге басқанда ғана қабылданады (әр әріпте өзгермейді)
+  prev.onchange = e => { const inp = e.target.closest('.tr-slot'); if (inp) applySlot(+inp.dataset.i, byName(inp.value), inp.value); };
+  prev.addEventListener('focusin', e => { if (e.target.matches?.('.tr-slot')) e.target.select(); });
+  prev.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches?.('.tr-slot')) e.target.blur(); });
+  // ▾ түймесі: барлық көліктердің толық тізімі, ағымдағы көлік белгіленіп тұрады, төмен қарай айналдыруға болады
+  const ALL = [...CARS].sort((x, y) => fullName(x).localeCompare(fullName(y)));
+  prev.addEventListener('click', e => {
+    const btn = e.target.closest('.tr-open'); if (!btn || btn.disabled) return;
+    const li = btn.closest('li'), old = li.querySelector('.tr-list'); if (old) { old.remove(); return; }
+    prev.querySelectorAll('.tr-list').forEach(x => x.remove());
+    const i = +btn.dataset.i, sel = document.createElement('select'); sel.className = 'tr-list'; sel.size = 9;
+    sel.innerHTML = ALL.map(c => `<option value="${c.id}">${fullName(c)} — ${c.hp} а.к.</option>`).join('');
+    sel.value = String(lineup[i].id); li.appendChild(sel); sel.focus();
+    const cur = sel.options[sel.selectedIndex]; if (cur) sel.scrollTop = Math.max(0, cur.offsetTop - sel.clientHeight / 2);
+    const pick = () => applySlot(i, ALL.find(c => String(c.id) === sel.value), sel.value);
+    sel.onchange = pick; sel.onclick = () => { if (sel.value) pick(); }; sel.onkeydown = ev => { if (ev.key === 'Escape') sel.remove(); else if (ev.key === 'Enter') pick(); };
+  });
   $('trShuffle').onclick = fresh; themeSel.onchange = fresh; fmtSel.onchange = fresh; fresh();
 
   const ts = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -362,7 +398,7 @@ export function initTournament({game, YT}) {
     else if (fmt === 'gauntlet') { card += 3.4 + 7 * 8.8 + 9; races = Array(7).fill(raceSec(dist)); }
     else if (fmt === 'gp1') { card += 3.4 + 6.5 + 9; races = [raceSec(dist)]; }
     else { card += 4 * 3.4 + 4 * 6 + 9; races = [201.17, 402.34, 603.5, 804.67].map(raceSec); }
-    Object.assign(prog, {on: true, cardLeft: card, races, k: 1, step0: 0});
+    Object.assign(prog, {on: true, cardLeft: card + 8, races, k: 1, step0: 0});
   }
   const stepStart = () => { prog.step0 = api.recTime; };
   function raceDone(actual) { const exp = prog.races.shift(); if (exp) prog.k = .5 * prog.k + .5 * (actual / exp); }
@@ -397,7 +433,7 @@ export function initTournament({game, YT}) {
     };
     const LABEL = {knockout: 'TOURNAMENT CHAMPION', dvg: 'TOURNAMENT CHAMPION', gauntlet: 'KING OF THE HILL', gp1: 'GRAND PRIX WINNER', gp4: 'CHAMPIONSHIP WINNER', time: 'FASTEST VERSION'};
     const champEnd = async (champCar, time) => {
-      await loadPhoto(champCar); mark('Champion'); await show(champCard(champCar, traits[idxOf(champCar)], time, 'AI physics simulation · results are computed, not real footage', LABEL[fmt]), 9); return champCar;
+      await loadPhoto(champCar); mark('Champion'); await show(champCard(champCar, traits[idxOf(champCar)], time, 'AI physics simulation · results are computed, not real footage', LABEL[fmt]), 9); mark('Subscribe & next video'); await show(outroCard(8), 8); return champCar;
     };
 
     const quick = new URLSearchParams(location.search).has('quick'); // тест үшін: таныстыруды өткізіп жіберу
@@ -459,6 +495,7 @@ export function initTournament({game, YT}) {
     const description = [
       `${F0.long} 🏁`, `🏆 Winner: ${champ.make} ${champ.model}`, '',
       'THE CONTENDERS', ...cars.map((c, i) => `• ${c.make} ${c.model} — ${c.hp} hp, ${c.weight} kg, 0–100 ${c.zero} s — ${traits[i].title}`), '',
+      '🔔 Subscribe to the channel so you do not miss the next videos! / Подпишись на канал, чтобы не пропустить другие видео!', '💬 Want other cars to race? Write the car names in the comments! / Хотите увидеть другие машины? Напишите названия в комментариях!', '❓ Which cars should be in the NEXT video? Tell us and we will test them! / Какие машины будут в СЛЕДУЮЩЕМ видео? Пишите — проверим!', '',
       'RESULTS', ...ledger, '', 'CHAPTERS', chap, '',
       'AI Simulation: computer-generated physics race based on catalog power, weight and 0–100 data. Not a real race and not real footage.',
       '#DragRace #CarRace #AISimulation'
