@@ -11,12 +11,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=3">
-  <link rel="stylesheet" href="game.css?v=10">
+  <link rel="stylesheet" href="game.css?v=12">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#top" aria-label="DriveVault бас беті"><span class="brand-mark">DV</span><span>DRIVE<span>VAULT</span></span></a>
-    <nav aria-label="Негізгі мәзір"><a href="#calendar">Күнтізбе</a><a href="#studio">Студия</a><a href="#catalog">Каталог</a><a href="#history">Тарих</a></nav>
+    <nav aria-label="Негізгі мәзір"><a href="#tournament">Турнир</a><a href="#calendar">Күнтізбе</a><a href="#studio">Студия</a><a href="#catalog">Каталог</a><a href="#history">Тарих</a></nav>
     <button class="icon-button on" id="soundToggle" aria-label="Дыбысты ауыстыру">♪</button>
   </header>
 
@@ -33,6 +33,20 @@
       <div class="scroll-hint">ТӨМЕН <span>↓</span></div>
     </section>
 
+    <section class="section" id="tournament">
+      <div class="section-heading"><div><p class="eyebrow"><span></span> Ұзақ видео</p><h2>🏆 Турнир және 8 көлікті жарыс</h2></div><p>Формат пен тақырып таңдаңыз, көліктерді өзіңіз ауыстырыңыз (өрісте жазып іздеңіз), жол ұзақтығын қойыңыз. Видео 4–6 минут, әр көліктің ерекшелігімен, аяқталған соң YouTube-қа <b>ашық ұзақ видео</b> болып жүктеледі.</p></div>
+      <div class="tr-bar">
+        <label>Формат<select id="trFormat"></select></label>
+        <label>Тақырып (көліктер)<select id="trTheme"></select></label>
+        <label>Жол ұзақтығы<select id="trDist"><option value="201.17">201 м · ⅛ миля</option><option value="402.34" selected>402 м · ¼ миля</option><option value="804.67">805 м · ½ миля</option><option value="1000">1000 м</option></select></label>
+        <label>Сапасы<select id="trQuality"><option value="720" selected>720p (жеңіл, жылдам жүктеледі)</option><option value="1080">1080p (ауыр, ~300 МБ)</option></select></label>
+        <button class="button ghost compact" id="trShuffle" type="button">🔀 ҚАЙТА ТАҢДАУ</button>
+        <button class="button primary" id="trStart" type="button">🏆 ТУРНИР ЖАСАП, YOUTUBE-ҚА ЖҮКТЕУ</button>
+        <button class="button ghost compact" id="trStop" type="button" hidden>■ ТОҚТАТУ</button>
+      </div>
+      <ul class="tr-preview" id="trPreview"></ul>
+      <p class="yt-status" id="trStatus">Бастағанда Google-да бір рет «Allow» басасыз. Жазу кезінде бетті жаппаңыз, басқа қойындыға ауыса аласыз. Видео ~6 минут жазылады.</p>
+    </section>
     <section class="section" id="calendar">
       <div class="section-heading"><div><p class="eyebrow"><span></span> Жоспар</p><h2>Видео күнтізбесі</h2></div><p>Күнді бас — жұп өзі таңдалады. Жазылған видео сары, YouTube-қа жүктелген жасыл болады.</p></div>
       <div class="cal-bar"><label>Бастау күні<input type="date" id="calStart"></label><label>Күніне видео<select id="calPer"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label><button class="button primary compact" id="calNext" type="button">▶ КЕЛЕСІ ЖОСПАРЛАНҒАН ЖҰП</button><button class="button primary compact" id="calBatch" type="button">⚡ БҮГІНГІ ВИДЕОЛАРДЫ АВТОМАТ ЖАСАУ ЖӘНЕ ЖҮКТЕУ</button><button class="button ghost compact" id="calReset" type="button">БЕЛГІЛЕРДІ ТАЗАЛАУ</button><span class="cal-legend"><i class="plan"></i>жоспар <i class="rec"></i>жазылды <i class="up"></i>жүктелді</span></div>
