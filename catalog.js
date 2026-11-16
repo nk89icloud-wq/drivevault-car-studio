@@ -1,4 +1,4 @@
-import {EXTRA} from './catalog-extra.js?v=28';
+import {EXTRA} from './catalog-extra.js?v=30';
 export const CARS = [
   ['Toyota','Supra GR',382,500,4.1,1540,'Спорткар'],['Toyota','Camry',301,480,5.8,1625,'Седан'],['Toyota','Land Cruiser 300',409,1100,6.7,2585,'SUV'],['Toyota','GR86',228,250,6.3,1275,'Купе'],
   ['BMW','M4 Competition',503,650,3.9,1725,'Купе'],['BMW','M5 CS',627,750,3.0,1825,'Седан'],['BMW','X5 M',617,750,3.8,2385,'SUV'],['BMW','i7 M70',650,1100,3.7,2770,'Электр'],
