@@ -118,6 +118,32 @@ export function createAudio() {
     setTimeout(() => { try { n.g.disconnect(); n.src.stop(); } catch {} }, dur * 1000 + 100);
   }
 
+  /** Жануар дыбыстары: үру (bark) және тұяқ/табан соққысы (thud) */
+  function bark(pitch = 1, vol = .5) {
+    if (!ensure()) return; const t = ctx.currentTime, g = ctx.createGain(), bp = ctx.createBiquadFilter(), o = ctx.createOscillator(), o2 = ctx.createOscillator();
+    o.type = 'sawtooth'; o2.type = 'square'; o.frequency.setValueAtTime(420 * pitch, t); o.frequency.exponentialRampToValueAtTime(230 * pitch, t + .16); o2.frequency.setValueAtTime(840 * pitch, t); o2.frequency.exponentialRampToValueAtTime(380 * pitch, t + .16);
+    bp.type = 'bandpass'; bp.frequency.setValueAtTime(900, t); bp.frequency.exponentialRampToValueAtTime(600, t + .16); bp.Q.value = 2.2;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol * .5, t + .012); g.gain.exponentialRampToValueAtTime(.001, t + .2);
+    o.connect(bp); o2.connect(bp); bp.connect(g); g.connect(master); o.start(t); o2.start(t); o.stop(t + .25); o2.stop(t + .25);
+  }
+  function thud(vol = .1, f = 110) {
+    if (!ensure()) return; const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * .45, t + .09); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + .1);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + .12);
+  }
+
+  /** Соқтығысу дыбысы: төмен соққы + металл сынуы + әйнек сынығы. k: 0..1 қарқындылық */
+  function crashHit(k = .7) {
+    if (!ensure()) return; const t = ctx.currentTime, out = ctx.createGain(); out.gain.value = .9; out.connect(master);
+    const thump = ctx.createOscillator(), tg = ctx.createGain(); thump.type = 'sine'; thump.frequency.setValueAtTime(95 + 40 * k, t); thump.frequency.exponentialRampToValueAtTime(28, t + .45);
+    tg.gain.setValueAtTime(0, t); tg.gain.linearRampToValueAtTime(1.1, t + .006); tg.gain.exponentialRampToValueAtTime(.001, t + .7); thump.connect(tg); tg.connect(out); thump.start(t); thump.stop(t + .75);
+    const burst = (freq, q, vol, dur, delay = 0) => { const s = ctx.createBufferSource(); s.buffer = noiseBuf; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q; const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t + delay); g.gain.linearRampToValueAtTime(vol, t + delay + .004); g.gain.exponentialRampToValueAtTime(.001, t + delay + dur); s.connect(f); f.connect(g); g.connect(out); s.start(t + delay, Math.random()); s.stop(t + delay + dur + .05); };
+    burst(180, .8, 1.3 * (.5 + k), .5); burst(900, 1.2, .9 * k, .35, .01); burst(2600, 2, .6 * k, .25, .02);
+    for (let i = 0; i < 9; i++) burst(3500 + Math.random() * 3500, 6, .18 * k, .12, .05 + Math.random() * .5);
+    const ring = ctx.createOscillator(), rg = ctx.createGain(); ring.type = 'triangle'; ring.frequency.value = 420; rg.gain.setValueAtTime(0, t + .02); rg.gain.linearRampToValueAtTime(.12 * k, t + .03); rg.gain.exponentialRampToValueAtTime(.001, t + .9); ring.connect(rg); rg.connect(out); ring.start(t + .02); ring.stop(t + .95);
+  }
+
   // ---------------------------------------------------------------- фондық музыка (өзіміз синтездейміз, phonk стилі, авторлық құқық жоқ)
   let music = null;
   const CHORDS = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]], BASS = [33, 29, 36, 31]; // Am F C G
@@ -132,8 +158,9 @@ export function createAudio() {
     musicGain = Math.min(3, Math.max(.1, .07 / Math.max(.005, Math.sqrt(sum / Math.max(1, n))))); // ұқсас қатты емес деңгейге теңестіру
     return true;
   }
+  let musicEnabled = false; try { musicEnabled = localStorage.getItem('drivevault-music') === '1'; } catch {}
   function startMusic() {
-    if (!ensure() || music) return;
+    if (!musicEnabled || !ensure() || music) return;
     if (musicBuf) {
       const bus = ctx.createGain(); bus.gain.value = 0; bus.gain.linearRampToValueAtTime(musicGain, ctx.currentTime + 1.5); bus.connect(master);
       const src = ctx.createBufferSource(); src.buffer = musicBuf; src.loop = true; src.connect(bus);
@@ -197,9 +224,9 @@ export function createAudio() {
   }
 
   return {
-    startMusic, stopMusic, setMusicFile, get hasMusicFile() { return !!musicBuf; },
+    startMusic, stopMusic, setMusicFile, get musicEnabled() { return musicEnabled; }, setMusicEnabled(on) { musicEnabled = !!on; try { localStorage.setItem('drivevault-music', on ? '1' : '0'); } catch {} if (!on) stopMusic(.3); }, get hasMusicFile() { return !!musicBuf; },
     resume: () => { ensure(); return ctx?.resume?.(); },
-    setup, update, silence, beep, whoosh, teardown,
+    setup, update, silence, beep, whoosh, crashHit, bark, thud, teardown,
     setEnabled(on) { enabled = on; if (spk) spk.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, .05); },
     setSpeakers(on) { if (on !== enabled) this.setEnabled(on); },
     get enabled() { return enabled; },
