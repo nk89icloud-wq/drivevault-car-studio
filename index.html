@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=3">
-  <link rel="stylesheet" href="game.css?v=17">
+  <link rel="stylesheet" href="game.css?v=20">
 </head>
 <body>
   <header class="topbar">
@@ -40,6 +40,7 @@
         <label>Тақырып (көліктер)<select id="trTheme"></select></label>
         <label>Жол ұзақтығы<select id="trDist"><option value="201.17">201 м · ⅛ миля</option><option value="402.34" selected>402 м · ¼ миля</option><option value="804.67">805 м · ½ миля</option><option value="1000">1000 м</option></select></label>
         <label>Сапасы<select id="trQuality"><option value="720" selected>720p (жеңіл, жылдам жүктеледі)</option><option value="1080">1080p (ауыр, ~300 МБ)</option></select></label>
+        <label>Көлік саны<select id="trCount"><option value="2">2 көлік</option><option value="3">3 көлік</option><option value="4">4 көлік</option><option value="5">5 көлік</option><option value="6">6 көлік</option><option value="7">7 көлік</option><option value="8" selected>8 көлік</option></select></label>
         <label>Тіл (видео мәтіні)<select id="trLang"><option value="en" selected>English</option><option value="ru">Русский</option><option value="kk">Қазақша</option></select></label>
         <button class="button ghost compact" id="trShuffle" type="button">🔀 ҚАЙТА ТАҢДАУ</button>
         <button class="button primary" id="trStart" type="button">🏆 ТУРНИР ЖАСАП, YOUTUBE-ҚА ЖҮКТЕУ</button>
@@ -78,23 +79,32 @@
 
       <div class="game-shell" id="gameShell">
         <div class="game-toolbar">
-          <div class="mode-tabs" role="tablist"><button class="mode-tab active" id="raceMode" role="tab">🏁 ЖАРЫС</button><button class="mode-tab" id="crashMode" role="tab">💥 КРАШ-ТЕСТ</button></div>
+          <div class="mode-tabs" role="tablist"><button class="mode-tab active" id="raceMode" role="tab">🏁 ЖАРЫС</button><button class="mode-tab" id="crashMode" role="tab">💥 КРАШ-ТЕСТ</button><button class="mode-tab" id="animalMode" role="tab">🐕 ИТТЕР / ЖАНУАРЛАР</button></div>
           <div class="tr-progress" id="trProg" hidden><div class="tr-progress-bar"><i id="trProgFill"></i></div><span id="trProgText"></span></div>
           <div class="video-tools"><span class="rec-indicator" id="recIndicator" hidden><i></i>REC</span><button id="gameHudToggle" title="Интерфейсті жасыру/көрсету (H)">🎥 HUD</button><button id="gameFullscreen" title="Толық экран (F)">⛶ FULL</button><div class="game-status"><i></i><span id="gameStatus">ДАЙЫН</span></div></div>
         </div>
         <div class="race-options" id="raceOptions">
           <label>Қашықтық<select id="raceDistance"><option value="201.17">201 м · ⅛ миля</option><option value="402.34" selected>402 м · ¼ миля</option><option value="804.67">805 м · ½ миля</option><option value="1000">1000 м</option></select></label>
           <label>Видео пішімі<select id="recFormat"><option value="short1080" selected>YouTube Shorts · 9:16 · 1080×1920</option><option value="short720">Shorts · 9:16 · 720×1280 (жеңіл)</option><option value="wide1080">Кең · 16:9 · 1920×1080</option></select></label>
-          <label class="music-pick">Музыка<span class="music-row"><input type="file" id="musicFile" accept="audio/*" hidden><button class="button ghost compact" id="musicBtn" type="button">🎵 Өз музыкамды таңдау</button><button class="button ghost compact" id="musicClear" type="button" hidden>✕</button></span><small id="musicName">Ішкі музыка қолданылады</small></label>
+          <label class="music-pick">Музыка <input type="checkbox" id="musicOn" style="width:auto;margin-left:6px"> қосу (әдепкіде өшірулі)<span class="music-row"><input type="file" id="musicFile" accept="audio/*" hidden><button class="button ghost compact" id="musicBtn" type="button">🎵 Өз музыкамды таңдау</button><button class="button ghost compact" id="musicClear" type="button" hidden>✕</button></span><small id="musicName">Ішкі музыка қолданылады</small></label>
           <label>Тіл<select id="raceLang"><option value="kk" selected>Қазақша</option><option value="ru">Русский</option><option value="en">English</option></select></label>
+        </div>
+        <div class="race-options" id="anOptions" hidden>
+          <label>Санат<select id="anCat"><option value="all" selected>Иттер + жануарлар</option><option value="dog">🐕 Тек иттер</option><option value="wild">🐆 Жабайы жануарлар</option></select></label>
+          <label>Саны<select id="anCount"><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></label>
+          <label>Қашықтық<select id="anDist"><option value="100">100 м</option><option value="200" selected>200 м</option><option value="400">400 м</option></select></label>
+          <label>1-ші<select id="anA"></select></label><label>2-ші<select id="anB"></select></label><label id="anLC" hidden>3-ші<select id="anC"></select></label><label id="anLD" hidden>4-ші<select id="anD"></select></label>
+          <button class="button ghost compact" id="anShuffle" type="button">🔀 ЖҰП ТАҢДАУ</button>
         </div>
         <div class="game-stage" id="gameStage">
           <canvas id="gameCanvas" aria-label="DriveVault жарыс симуляторы"></canvas>
           <div class="game-countdown" id="gameCountdown"></div>
           <div class="game-message" id="gameMessage"></div>
           <div class="crash-panel" id="crashPanel" hidden>
-            <label>Соқтығысу жылдамдығы <strong><span id="crashSpeedValue">80</span> км/сағ</strong><input id="crashSpeed" type="range" min="30" max="200" value="80"></label>
-            <label>Кедергі түрі<select id="barrierType"><option value="wall">Бетон қабырға</option><option value="offset">40% offset тосқауыл</option><option value="pole">Болат бағана</option></select></label>
+            <label>A көлік (атын жазыңыз немесе ▾ тізімнен)<input id="crashCarA" list="carNames" placeholder="мыс. Camry" autocomplete="off"></label>
+            <label>B көлік (бетпе-бет режимінде)<input id="crashCarB" list="carNames" placeholder="мыс. Land Cruiser" autocomplete="off"></label>
+            <label>Соқтығысу жылдамдығы <strong><span id="crashSpeedValue">64</span> км/сағ</strong><input id="crashSpeed" type="range" min="30" max="200" value="64"></label>
+            <label>Сценарий<select id="barrierType"><option value="wall">Қатты қабырға (100% ені)</option><option value="offset" selected>Offset 40% (Euro NCAP)</option><option value="pole">Тар бағанаға</option><option value="head">Бетпе-бет: A көлік vs B көлік</option><option value="headoff">Бетпе-бет, 40% offset (A vs B)</option></select></label>
           </div>
         </div>
         <div class="game-footer">
@@ -152,6 +162,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer><a class="brand" href="#top"><span class="brand-mark">DV</span><span>DRIVE<span>VAULT</span></span></a><p>Көлік деректері демонстрациялық мақсатта берілген.</p><span>© 2026 DriveVault</span></footer>
-  <script type="module" src="app.js?v=19"></script>
+  <script type="module" src="app.js?v=27"></script>
 </body>
 </html>
