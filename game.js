@@ -1,13 +1,13 @@
-import {makeSpec, newState, step, vehiclePerformance, clamp, lerp, KMH100, QUARTER_MILE} from './physics.js?v=27';
-import {createAudio} from './audio.js?v=27';
-import * as YT from './youtube.js?v=27';
-import {saveTrack, loadTrack, clearTrack} from './music.js?v=27';
-import {outroCard} from './outro.js?v=27';
-import {makeRace, drawAnimalRace, ANIMALS, SPR, loadSprites} from './animals.js?v=27';
-import {loadCarPhoto, cachedPhoto} from './photos.js?v=27';
-import {drawRace, LANES, pickPaints} from './render.js?v=27';
-import {simulate, crashSummary, SCENARIOS} from './crashsim.js?v=27';
-import {drawCrash, timeline} from './crashview.js?v=27';
+import {makeSpec, newState, step, vehiclePerformance, clamp, lerp, KMH100, QUARTER_MILE} from './physics.js?v=28';
+import {createAudio} from './audio.js?v=28';
+import * as YT from './youtube.js?v=28';
+import {saveTrack, loadTrack, clearTrack} from './music.js?v=28';
+import {outroCard} from './outro.js?v=28';
+import {makeRace, drawAnimalRace, ANIMALS, SPR, loadSprites} from './animals.js?v=28';
+import {loadCarPhoto, cachedPhoto} from './photos.js?v=28';
+import {drawRace, LANES, pickPaints} from './render.js?v=28';
+import {simulate, crashSummary, SCENARIOS} from './crashsim.js?v=28';
+import {drawCrash, timeline} from './crashview.js?v=28';
 
 export {vehiclePerformance};
 
