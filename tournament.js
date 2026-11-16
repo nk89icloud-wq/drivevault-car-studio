@@ -1,9 +1,9 @@
 // Ұзақ видео: 8 көліктік турнир (чвертьфинал → жартылай финал → финал), бір видеоға жазылады, YouTube-қа ашық жүктеледі.
 // Әр көліктің өз «ерекшелігі» бар (ең күшті, ең жеңіл, электр момент...), карточкалар ағылшынша (АҚШ аудиториясы үшін).
-import {CARS, fullName, atYear, estimateQuarterMile} from './catalog.js?v=28';
-import {drivetrainOf, isEV} from './physics.js?v=28';
-import {loadCarPhoto, cachedPhoto} from './photos.js?v=28';
-import {outroCard} from './outro.js?v=28';
+import {CARS, fullName, atYear, estimateQuarterMile} from './catalog.js?v=30';
+import {drivetrainOf, isEV} from './physics.js?v=30';
+import {loadCarPhoto, cachedPhoto} from './photos.js?v=30';
+import {outroCard} from './outro.js?v=30';
 
 // Фото: уақыт машинасында «(2026)» жұрнағын алып тастаймыз
 const photoKey = c => ({...c, model: String(c.model).replace(/ \(\d{4}\)$/, '')});
@@ -522,7 +522,7 @@ export function initTournament({game, YT}) {
       $('ytAutoUp').checked = !dry; $('ytPrivacy').value = 'public';
       const dist = $('trDist').value; setSel('raceLang', $('trLang').value); setSel('raceDistance', dist); setSel('recFormat', 'wide1080');
       document.querySelector('#studio')?.scrollIntoView({behavior: 'smooth'});
-      const hd = $('trQuality').value === '1080' ? ['wide1080', 8e6] : ['wide720', 5e6];
+      const hd = $('trQuality').value === '1080' ? ['wide1080', 5e6] : ['wide720', 3e6];
       if (!await api.begin(hd[0], hd[1])) throw new Error('Видео жазу басталмады');
       progTimer = setInterval(updateProg, 500);
       const cars = lineup.map(c => ({...c})), traits = traitsOf(cars);
