@@ -71,15 +71,39 @@ export async function uploadVideo(tok, blob, {title, description, tags = [], pri
   });
   if (!init.ok) throw new Error(await apiError(init));
   const loc = init.headers.get('Location'); if (!loc) throw new Error('Жүктеу сессиясы ашылмады');
-  return new Promise((res, rej) => {
-    const x = new XMLHttpRequest(); x.open('PUT', loc); x.setRequestHeader('Content-Type', blob.type || 'video/mp4');
-    x.upload.onprogress = e => e.lengthComputable && onProgress(e.loaded / e.total);
-    x.onload = () => {
-      if (x.status >= 200 && x.status < 300) { const j = JSON.parse(x.responseText); res({id: j.id, url: `https://www.youtube.com/shorts/${j.id}`, studio: `https://studio.youtube.com/video/${j.id}/edit`}); }
-      else rej(new Error(`YouTube қатесі ${x.status}: ${x.responseText.slice(0, 200)}`));
-    };
-    x.onerror = () => rej(new Error('Желі қатесі жүктеу кезінде')); x.send(blob);
+  // Бөлшектеп (4 МБ) жүктеу: желі үзілсе, сессияның қабылдаған жерінен қайта жалғастырады
+  const total = blob.size, type = blob.type || 'video/mp4', CHUNK = 16 * 262144;
+  const put = (start, end, body, range) => new Promise((res, rej) => {
+    const x = new XMLHttpRequest(); x.open('PUT', loc); x.timeout = 120000;
+    x.setRequestHeader('Content-Range', range);
+    if (body) { x.setRequestHeader('Content-Type', type); x.upload.onprogress = e => e.lengthComputable && onProgress((start + e.loaded) / total); }
+    x.onload = () => res({status: x.status, text: x.responseText, range: x.getResponseHeader('Range')});
+    x.onerror = () => rej(new Error('net')); x.ontimeout = () => rej(new Error('net')); x.onabort = () => rej(new Error('net'));
+    x.send(body);
   });
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const done = t => { const j = JSON.parse(t); return {id: j.id, url: `https://www.youtube.com/shorts/${j.id}`, studio: `https://studio.youtube.com/video/${j.id}/edit`}; };
+  let pos = 0, fails = 0;
+  while (pos < total) {
+    const end = Math.min(total, pos + CHUNK);
+    try {
+      const r = await put(pos, end, blob.slice(pos, end), `bytes ${pos}-${end - 1}/${total}`);
+      if (r.status === 200 || r.status === 201) { onProgress(1); return done(r.text); }
+      if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.range || ''); pos = m ? +m[1] + 1 : end; fails = 0; onProgress(pos / total); continue; }
+      if (r.status >= 500 || r.status === 429) throw new Error('net');
+      throw new Error(`YouTube қатесі ${r.status}: ${r.text.slice(0, 200)}`);
+    } catch (e) {
+      if (e.message !== 'net') throw e;
+      if (++fails > 12) throw new Error('Желі қатесі жүктеу кезінде (интернет үзілді; бейне жадта тұр, түймені қайта басыңыз)');
+      await wait(Math.min(15000, 1000 * fails)); // кідіріп, қай жерге дейін қабылданғанын сұрау
+      try {
+        const q = await put(0, 0, null, `bytes */${total}`);
+        if (q.status === 200 || q.status === 201) { onProgress(1); return done(q.text); }
+        if (q.status === 308) { const m = /bytes=0-(\d+)/.exec(q.range || ''); pos = m ? +m[1] + 1 : 0; if (!q.range) pos = Math.min(pos, 0); }
+      } catch { /* желі әлі жоқ: келесі айналымда қайталаймыз */ }
+    }
+  }
+  throw new Error('Жүктеу аяқталмады');
 }
 
 async function apiError(r) {
