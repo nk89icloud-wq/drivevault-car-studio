@@ -1,8 +1,9 @@
 // Ұзақ видео: 8 көліктік турнир (чвертьфинал → жартылай финал → финал), бір видеоға жазылады, YouTube-қа ашық жүктеледі.
 // Әр көліктің өз «ерекшелігі» бар (ең күшті, ең жеңіл, электр момент...), карточкалар ағылшынша (АҚШ аудиториясы үшін).
-import {CARS, fullName, atYear, estimateQuarterMile} from './catalog.js?v=19';
-import {drivetrainOf, isEV} from './physics.js?v=19';
-import {loadCarPhoto, cachedPhoto} from './photos.js?v=19';
+import {CARS, fullName, atYear, estimateQuarterMile} from './catalog.js?v=27';
+import {drivetrainOf, isEV} from './physics.js?v=27';
+import {loadCarPhoto, cachedPhoto} from './photos.js?v=27';
+import {outroCard} from './outro.js?v=27';
 
 // Фото: уақыт машинасында «(2026)» жұрнағын алып тастаймыз
 const photoKey = c => ({...c, model: String(c.model).replace(/ \(\d{4}\)$/, '')});
@@ -29,7 +30,7 @@ const MAKES = {
   ru: ['ВАЗ (Lada)', 'ГАЗ', 'ЗАЗ', 'ИЖ', 'Москвич', 'УАЗ', 'Aurus', 'ВИС', 'ЗИЛ', 'ТагАЗ']
 };
 export const THEMES = {
-  mix: {label: 'Аралас (кез келген 8)', title: '8 Random Cars', pool: () => CARS},
+  mix: {label: 'Аралас (кез келген)', title: '8 Random Cars', pool: () => CARS},
   cn: {label: 'Қытай көліктері', title: '8 Chinese Cars', pool: () => CARS.filter(c => MAKES.cn.includes(c.make))},
   cnev: {label: 'Қытай электрлері', title: '8 Chinese EVs', pool: () => CARS.filter(c => MAKES.cn.includes(c.make) && c.type === 'Электр')},
   jp: {label: 'Жапония', title: '8 Japanese Cars', pool: () => CARS.filter(c => MAKES.jp.includes(c.make))},
@@ -55,20 +56,20 @@ function usedLoad() { try { return JSON.parse(localStorage.getItem(USED_KEY)) ||
 function usedSave(ids) { try { localStorage.setItem(USED_KEY, JSON.stringify(ids.slice(-400))); } catch { /* жад жоқ */ } }
 
 /** 8 көлікті таңдау: қуаты жақын (әділ), бір маркадан көп емес, бұрын қолданылмаған. */
-export function pickEight(theme) {
+export function pickEight(theme, n = 8) {
   const all = THEMES[theme].pool(), used = new Set(usedLoad());
-  let pool = all.filter(c => !used.has(c.id)); if (pool.length < 8) pool = all;
-  if (pool.length < 8) pool = CARS;
+  let pool = all.filter(c => !used.has(c.id)); if (pool.length < n) pool = all;
+  if (pool.length < n) pool = CARS;
   const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   for (let spread = 1.7; spread < 8; spread *= 1.35) {
     for (let tries = 0; tries < 40; tries++) {
       const anchor = shuffle(pool)[0], near = shuffle(pool.filter(c => c.hp >= anchor.hp / spread && c.hp <= anchor.hp * spread && c.id !== anchor.id));
       const pick = [anchor], perMake = {[anchor.make]: 1};
-      for (const c of near) { if ((perMake[c.make] || 0) >= 2) continue; pick.push(c); perMake[c.make] = (perMake[c.make] || 0) + 1; if (pick.length === 8) break; }
-      if (pick.length === 8) return shuffle(pick);
+      for (const c of near) { if ((perMake[c.make] || 0) >= 2) continue; pick.push(c); perMake[c.make] = (perMake[c.make] || 0) + 1; if (pick.length === n) break; }
+      if (pick.length === n) return shuffle(pick);
     }
   }
-  return shuffle(pool).slice(0, 8);
+  return shuffle(pool).slice(0, n);
 }
 
 /** Әр көлікке бірегей «ерекшелік» (шатаспау үшін): суперлатив немесе жетек/кузов ерекшелігі. */
@@ -124,13 +125,13 @@ function makeCard(dur, draw) {
 }
 const bar = (ctx, x, y, w, v, max, color) => { fill(ctx, x, y, w, 16, 8, '#ffffff22'); fill(ctx, x, y, Math.max(10, w * v / max), 16, 8, color); };
 
-function introCard(title, cars, traits) {
+function introCard(title, cars, traits, info) {
   return makeCard(6.5, (ctx, t) => {
     text(ctx, 'DRAG RACE TOURNAMENT', 960, 150, 58, {a: 'center', c: '#ffb020', w: 800});
     text(ctx, title.toUpperCase(), 960, 260, 118, {a: 'center', w: 900, max: 1700});
-    text(ctx, '8 cars  ·  7 races  ·  1 champion', 960, 365, 46, {a: 'center', c: '#cfd6e6', w: 600});
+    text(ctx, `${cars.length} cars  ·  ${info}  ·  1 champion`, 960, 365, 46, {a: 'center', c: '#cfd6e6', w: 600});
     cars.forEach((c, i) => {
-      const x = 90 + (i % 4) * 450, y = 450 + Math.floor(i / 4) * 230, a = Math.min(1, Math.max(0, t - .6 - i * .25) / .4);
+      const row = Math.floor(i / 4), cnt = Math.min(4, cars.length - row * 4), x = (1920 - (cnt * 450 - 30)) / 2 + (i % 4) * 450, y = 450 + row * 230, a = Math.min(1, Math.max(0, t - .6 - i * .25) / .4);
       ctx.save(); ctx.globalAlpha *= a; ctx.translate(0, (1 - a) * 26);
       fill(ctx, x, y, 420, 200, 22, '#ffffff12'); fill(ctx, x, y, 14, 200, 7, traits[i].color);
       text(ctx, c.make, x + 38, y + 52, 30, {c: '#aeb8d0', w: 600, max: 360}); text(ctx, c.model, x + 38, y + 104, 44, {w: 800, max: 360});
@@ -145,7 +146,7 @@ function spotCard(c, tr, idx, all) {
   const mx = k => Math.max(...all.map(x => x[k])), ratio = c.hp / c.weight * 1000, mxR = Math.max(...all.map(x => x.hp / x.weight * 1000));
   return makeCard(5.6, (ctx, t) => {
     const slide = Math.min(1, t / .5), e = 1 - Math.pow(1 - slide, 3);
-    text(ctx, `CONTENDER ${idx + 1} / 8`, 110, 110, 40, {c: tr.color, w: 800});
+    text(ctx, `CONTENDER ${idx + 1} / ${all.length}`, 110, 110, 40, {c: tr.color, w: 800});
     ctx.save(); ctx.translate((1 - e) * -160, 0);
     text(ctx, c.make.toUpperCase(), 110, 235, 64, {c: '#aeb8d0', w: 700, max: 900});
     text(ctx, c.model, 110, 350, 124, {w: 900, max: 1100});
@@ -199,20 +200,19 @@ function winnerCard(stage, win, lose, tw, tl, finW, finL, nextLabel, dur = 3.8) 
 }
 
 function bracketCard(br, headline, dur = 5) {
+  const NAMES = {8: 'QUARTER-FINALS', 4: 'SEMI-FINALS', 2: 'FINAL', 1: 'CHAMPION'};
   return makeCard(dur, (ctx, t) => {
     text(ctx, headline, 960, 90, 58, {a: 'center', c: '#ffb020', w: 900});
-    const cols = [[90, br.qf], [560, br.sf], [1030, br.f], [1500, [br.champ]]];
-    const ys = [260, 150];
-    cols.forEach(([x, arr], ci) => {
+    const R = br.rounds, nc = R.length, x0 = (1920 - (nc * 470 - 70)) / 2, m0 = R[0].length, gap0 = m0 >= 8 ? 112 : m0 === 4 ? 170 : 260;
+    R.forEach((arr, ci) => {
+      const x = x0 + ci * 470, gap = gap0 * Math.pow(2, ci), y0 = 600 - (arr.length - 1) * gap / 2;
+      text(ctx, NAMES[arr.length] || '', x + 200, 150, 26, {a: 'center', c: '#8892ab', w: 800});
       arr.forEach((e, i) => {
-        const gap = [112, 224, 448, 0][ci], y0 = [210, 266, 378, 600][ci], y = y0 + i * gap;
-        const has = !!e, col = has ? br.colors[e.id] : '#4a5068';
+        const y = y0 + i * gap, has = !!e, col = has ? br.colors[e.id] : '#4a5068';
         fill(ctx, x, y - 38, 400, 76, 16, has ? '#ffffff16' : '#ffffff08'); fill(ctx, x, y - 38, 10, 76, 5, col);
-        text(ctx, has ? fullName(e) : '—', x + 28, y, 30, {w: has ? 700 : 500, c: has ? '#fff' : '#6a728c', max: 350});
+        text(ctx, has ? fullName(e) : (ci === 0 ? 'BYE' : '—'), x + 28, y, 30, {w: has ? 700 : 500, c: has ? '#fff' : '#6a728c', max: 350});
       });
     });
-    ['QUARTER-FINALS', 'SEMI-FINALS', 'FINAL', 'CHAMPION'].forEach((l, i) => text(ctx, l, [290, 760, 1230, 1700][i], 150, 26, {a: 'center', c: '#8892ab', w: 800}));
-    void ys;
   });
 }
 
@@ -222,26 +222,6 @@ function roundCard(title, sub) {
     const e = 1 - Math.pow(1 - Math.min(1, t / .6), 3);
     text(ctx, title, 960, 480 + (1 - e) * 60, 130, {a: 'center', w: 900, c: '#ffb020'});
     text(ctx, sub, 960, 620, 52, {a: 'center', c: '#cfd6e6', w: 600});
-  });
-}
-
-/** Видео соңы: жазылу + коментке көлік атын жазу + келесі видео сұрағы (EN + RU), толық экран. */
-function outroCard(dur = 8) {
-  const items = [
-    ['🔔', 'SUBSCRIBE TO THE CHANNEL', "Don't miss the next videos!", 'ПОДПИШИСЬ НА КАНАЛ', 'Не пропусти другие видео!', '#ff4d4d'],
-    ['💬', 'WANT OTHER CARS TO RACE?', 'Write the car names in the comments!', 'ХОТИТЕ ДРУГИЕ МАШИНЫ?', 'Напишите названия в комментариях!', '#4cc3ff'],
-    ['❓', 'WHICH CARS IN THE NEXT VIDEO?', "Tell us - we'll put them to the test!", 'КАКИЕ МАШИНЫ В СЛЕДУЮЩЕМ ВИДЕО?', 'Пишите — мы проверим их в гонке!', '#ffb020']
-  ];
-  return makeCard(dur, (ctx, t) => {
-    items.forEach(([ic, en1, en2, ru1, ru2, col], i) => {
-      const a = Math.min(1, Math.max(0, t - .25 - i * .55) / .45), y = 90 + i * 330;
-      ctx.save(); ctx.globalAlpha *= a; ctx.translate((1 - a) * 90, 0);
-      fill(ctx, 130, y, 1660, 290, 28, '#ffffff12'); fill(ctx, 130, y, 16, 290, 8, col);
-      text(ctx, ic, 270, y + 150, 120, {a: 'center'});
-      text(ctx, en1, 400, y + 70, 56, {w: 900, c: col, max: 1330}); text(ctx, en2, 400, y + 132, 42, {w: 700, max: 1330});
-      text(ctx, ru1, 400, y + 206, 50, {w: 900, c: col, max: 1330}); text(ctx, ru2, 400, y + 262, 38, {w: 700, c: '#cfd6e6', max: 1330});
-      ctx.restore();
-    });
   });
 }
 
@@ -278,11 +258,11 @@ function raceOverlay(stage, ta, tb) {
   };
 }
 
-function gridOverlay(stage) {
+function gridOverlay(stage, n = 8) {
   return (ctx, w, h) => {
     const k = Math.min(w / 1920, h / 1080), bh = Math.max(34, 54 * k * 1.2), sz = Math.max(13, 28 * k * 1.1);
     ctx.save(); ctx.fillStyle = '#06080fcc'; ctx.fillRect(0, h - bh, w, bh); ctx.font = F(sz, 800); ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffb020'; ctx.fillText(stage.toUpperCase() + '  ·  ALL 8 AT ONCE', w / 2, h - bh / 2); ctx.restore();
+    ctx.fillStyle = '#ffb020'; ctx.fillText(stage.toUpperCase() + `  ·  ALL ${n} AT ONCE`, w / 2, h - bh / 2); ctx.restore();
   };
 }
 
@@ -323,25 +303,26 @@ function podiumCard(top, dur = 6.5) {
 
 // ------------------------------------------------------------------ формат түрлері
 export const FORMATS = {
-  knockout: {label: '🏆 Нокаут: 8 көлік, 7 жарыс (чвертьфинал → финал)', title: 'Drag Race Tournament', long: '8 cars, 7 head-to-head drag races, one champion.'},
-  dvg: {label: '🥊 Әлсіздер vs күштілер (нокаут: ең әлсіз ↔ ең күшті)', title: 'Underdogs vs Giants Tournament', long: 'The weakest car faces the strongest in every first-round matchup. Can the underdogs survive?'},
-  gauntlet: {label: '👑 Таудың королі (чемпион қалады, 7 қарсылас)', title: 'King of the Hill Drag Race', long: 'One car defends the throne against seven challengers. Lose once and you are out.'},
-  gp1: {label: '🏁 8 көлік бір уақытта (бір жарыс, подиум)', title: 'Grand Prix: All 8 At Once', long: 'All 8 cars launch side by side in a single drag race. Who takes the podium?'},
-  gp4: {label: '🏎 Чемпионат: 8 көлік бір уақытта, 4 жарыс, ұпай', title: 'Drag Championship (4 Races)', long: 'All 8 cars race together four times over different distances. Points decide the champion.'},
-  time: {label: '⏳ Уақыт машинасы: бір көліктің 8 жылғы нұсқасы бір уақытта (4 жарыс, ұпай)', title: 'Time Machine: 8 Years of the Same Car', long: 'The same model from 8 different years, side by side over four distances. How much did it improve?'}
+  knockout: {label: '🏆 Нокаут (жартылай финал / чвертьфинал → финал)', title: () => 'Drag Race Tournament', long: n => `${n} cars, ${n - 1} head-to-head drag races, one champion.`},
+  dvg: {label: '🥊 Әлсіздер vs күштілер (нокаут: ең әлсіз ↔ ең күшті)', title: () => 'Underdogs vs Giants Tournament', long: () => 'The weakest car faces the strongest in every first-round matchup. Can the underdogs survive?'},
+  gauntlet: {label: '👑 Таудың королі (чемпион қалады, қалғандары қарсылас)', title: () => 'King of the Hill Drag Race', long: n => `One car defends the throne against ${n - 1} challenger${n > 2 ? 's' : ''}. Lose once and you are out.`},
+  gp1: {label: '🏁 Бәрі бір уақытта (бір жарыс, подиум)', title: n => `Grand Prix: All ${n} At Once`, long: n => `All ${n} cars launch side by side in a single drag race. Who takes the podium?`},
+  gp4: {label: '🏎 Чемпионат: бәрі бір уақытта, 4 жарыс, ұпай', title: () => 'Drag Championship (4 Races)', long: n => `All ${n} cars race together four times over different distances. Points decide the champion.`},
+  time: {label: '⏳ Уақыт машинасы: бір көліктің 8 жылғы нұсқасы бір уақытта (4 жарыс, ұпай)', title: () => 'Time Machine: 8 Years of the Same Car', long: () => 'The same model from 8 different years, side by side over four distances. How much did it improve?'}
 };
 const TIME_YEARS = [2026, 2024, 2022, 2020, 2018, 2016, 2015, 2014];
 const timeCars = base => TIME_YEARS.map(y => { const c = atYear(base, y); return {...c, model: `${base.model} (${y})`, year: y}; });
 
 // ------------------------------------------------------------------ басқару
 export function initTournament({game, YT}) {
-  const api = game.tournament, themeSel = $('trTheme'), fmtSel = $('trFormat'), startBtn = $('trStart'), stopBtn = $('trStop'), status = $('trStatus'), prev = $('trPreview');
+  const api = game.tournament, themeSel = $('trTheme'), countSel = $('trCount'), fmtSel = $('trFormat'), startBtn = $('trStart'), stopBtn = $('trStop'), status = $('trStatus'), prev = $('trPreview');
   if (!themeSel) return;
   themeSel.innerHTML = Object.entries(THEMES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   fmtSel.innerHTML = Object.entries(FORMATS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   let running = false, aborted = false, lineup = null, progTimer = 0;
   const say = (m, err) => { status.textContent = m; status.classList.toggle('err', !!err); };
   const chk = () => { if (aborted) throw new Error('Турнир тоқтатылды'); };
+  const N = () => fmtSel.value === 'time' ? 8 : Math.max(2, Math.min(8, +countSel.value || 8));
   const byName = q => { q = q.trim().toLocaleLowerCase('kk'); return CARS.find(c => fullName(c).toLocaleLowerCase('kk') === q) || CARS.find(c => fullName(c).toLocaleLowerCase('kk').includes(q)); };
 
   function traitsOf(cars) {
@@ -357,7 +338,15 @@ export function initTournament({game, YT}) {
       const pool = CARS.filter(c => c.hp >= 150 && c.hp <= 800 && c.type !== 'Электр' && (THEMES[themeSel.value].pool().includes(c)));
       const list = pool.length ? pool : CARS.filter(c => c.hp >= 150 && c.hp <= 800 && c.type !== 'Электр');
       lineup = timeCars(list[Math.floor(Math.random() * list.length)]);
-    } else lineup = pickEight(themeSel.value).map(c => atYear(c, 2026));
+    } else lineup = pickEight(themeSel.value, N()).map(c => atYear(c, 2026));
+    showPreview();
+  }
+  function syncCount() {
+    countSel.disabled = fmtSel.value === 'time'; countSel.title = countSel.disabled ? 'Уақыт машинасы әрқашан 8 нұсқа' : '';
+    if (fmtSel.value === 'time') return;
+    const n = N();
+    if (lineup.length > n) lineup = lineup.slice(0, n);
+    else if (lineup.length < n) { const have = new Set(lineup.map(c => c.id)); lineup = lineup.concat(pickEight(themeSel.value, n + 4).filter(c => !have.has(c.id)).slice(0, n - lineup.length).map(c => atYear(c, 2026))); }
     showPreview();
   }
   function applySlot(i, c, shown) {
@@ -384,7 +373,7 @@ export function initTournament({game, YT}) {
     const pick = () => applySlot(i, ALL.find(c => String(c.id) === sel.value), sel.value);
     sel.onchange = pick; sel.onclick = () => { if (sel.value) pick(); }; sel.onkeydown = ev => { if (ev.key === 'Escape') sel.remove(); else if (ev.key === 'Enter') pick(); };
   });
-  $('trShuffle').onclick = fresh; themeSel.onchange = fresh; fmtSel.onchange = fresh; fresh();
+  $('trShuffle').onclick = fresh; themeSel.onchange = fresh; fmtSel.onchange = () => { countSel.disabled = fmtSel.value === 'time'; fresh(); }; countSel.onchange = syncCount; fresh(); countSel.disabled = fmtSel.value === 'time';
 
   const ts = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -392,10 +381,10 @@ export function initTournament({game, YT}) {
   const prog = {on: false, cardLeft: 0, races: [], k: 1, step0: 0};
   function planFor(fmt, cars, dist, quick) {
     const et = cars.reduce((a, c) => a + estimateQuarterMile(c), 0) / cars.length, raceSec = d => 8.2 + et * Math.pow(d / 402.34, .75) * (fmt === 'knockout' || fmt === 'dvg' || fmt === 'gauntlet' ? 1 : 1.08);
-    const spot = quick ? 0 : (fmt === 'time' ? 8 * 4.2 : 8 * 5.6), intro = quick ? 1.5 : 6.5;
+    const n = cars.length, spot = quick ? 0 : (fmt === 'time' ? n * 4.2 : n * 5.6), intro = quick ? 1.5 : 6.5, P = n <= 2 ? 2 : n <= 4 ? 4 : 8, rounds = Math.log2(P);
     let card = intro + spot, races;
-    if (fmt === 'knockout' || fmt === 'dvg') { card += 3.2 + 4 * 8.8 + 4.5 + 3.2 + 2 * 8.8 + 4.5 + 3.2 + 10.8 + 9; races = Array(7).fill(raceSec(dist)); }
-    else if (fmt === 'gauntlet') { card += 3.4 + 7 * 8.8 + 9; races = Array(7).fill(raceSec(dist)); }
+    if (fmt === 'knockout' || fmt === 'dvg') { card += rounds * 3.2 + (n - 2) * 8.8 + 10.8 + (rounds - 1) * 4.5 + 9; races = Array(n - 1).fill(raceSec(dist)); }
+    else if (fmt === 'gauntlet') { card += 3.4 + (n - 1) * 8.8 + 9; races = Array(n - 1).fill(raceSec(dist)); }
     else if (fmt === 'gp1') { card += 3.4 + 6.5 + 9; races = [raceSec(dist)]; }
     else { card += 4 * 3.4 + 4 * 6 + 9; races = [201.17, 402.34, 603.5, 804.67].map(raceSec); }
     Object.assign(prog, {on: true, cardLeft: card + 8, races, k: 1, step0: 0});
@@ -415,7 +404,7 @@ export function initTournament({game, YT}) {
     const show = async (cardFn, sec) => { stepStart(); api.setOverlay(null); api.setCard(cardFn); await api.wait(sec * 1000); chk(); api.setCard(null); prog.cardLeft -= sec; };
     const stageOf = (round, i, n) => round === 'qf' ? `Quarter-final ${i + 1}/${n}` : round === 'sf' ? `Semi-final ${i + 1}/${n}` : 'THE FINAL';
     const idxOf = c => cars.findIndex(x => x.id === c.id && x.model === c.model);
-    const theme = THEMES[themeSel.value], title = fmt === 'time' ? `${cars[0].make} ${cars[0].model.replace(/ \(\d+\)$/, '')}` : theme.title;
+    const theme = THEMES[themeSel.value], n = cars.length, title = fmt === 'time' ? `${cars[0].make} ${cars[0].model.replace(/ \(\d+\)$/, '')}` : theme.title.replace(/^8 /, n + ' ');
 
     const match = async (a, b, stage, nextFn, dur = 5) => {
       const A = {c: a, t: traits[idxOf(a)]}, B = {c: b, t: traits[idxOf(b)]};
@@ -439,30 +428,46 @@ export function initTournament({game, YT}) {
     const quick = new URLSearchParams(location.search).has('quick'); // тест үшін: таныстыруды өткізіп жіберу
     cars.forEach(c => { loadPhoto(c, 20000); }); // фотоларды алдын ала жүктеу (фонда)
     mark('Intro: meet the field');
-    await show(introCard(title, cars, traits), quick ? 1.5 : 6.5);
+    const info = fmt === 'gp1' ? '1 race' : fmt === 'gp4' || fmt === 'time' ? '4 races' : `${n - 1} race${n > 2 ? 's' : ''}`;
+    await show(introCard(title, cars, traits, info), quick ? 1.5 : 6.5);
     mark('The contenders');
-    for (let i = 0; i < (quick ? 0 : 8); i++) { say(`Көлік таныстыру ${i + 1}/8`); await show(spotCard(cars[i], traits[i], i, cars), fmt === 'time' ? 4.2 : 5.6); }
+    for (let i = 0; i < (quick ? 0 : n); i++) { say(`Көлік таныстыру ${i + 1}/${n}`); await show(spotCard(cars[i], traits[i], i, cars), fmt === 'time' ? 4.2 : 5.6); }
 
     let champ;
     if (fmt === 'knockout' || fmt === 'dvg') {
-      const s = [...cars].sort((a, b) => b.hp - a.hp), seeded = fmt === 'dvg' ? [s[0], s[7], s[1], s[6], s[2], s[5], s[3], s[4]] : cars;
-      const br = {qf: seeded, sf: [null, null, null, null], f: [null, null], champ: null, colors: {}}; cars.forEach((c, i) => { br.colors[c.id] = colors[i]; });
-      mark('Quarter-finals'); await show(roundCard('QUARTER-FINALS', '4 races  ·  8 cars  ·  only winners move on'), 3.2);
-      const w1 = [];
-      for (let i = 0; i < 4; i++) { const r = await match(seeded[i * 2], seeded[i * 2 + 1], stageOf('qf', i, 4), c => `${c.make} ${c.model} advances to the semi-finals`); w1.push(r.winner); br.sf[i] = r.winner; }
-      mark('Bracket after quarter-finals'); await show(bracketCard(br, 'SEMI-FINALS SET'), 4.5);
-      await show(roundCard('SEMI-FINALS', '2 races  ·  4 cars left'), 3.2);
-      const w2 = [];
-      for (let i = 0; i < 2; i++) { const r = await match(w1[i * 2], w1[i * 2 + 1], stageOf('sf', i, 2), c => `${c.make} ${c.model} is in the FINAL`); w2.push(r.winner); br.f[i] = r.winner; }
-      mark('Bracket after semi-finals'); await show(bracketCard(br, 'THE FINAL IS SET'), 4.5);
-      await show(roundCard('THE FINAL', 'One race decides the champion'), 3.2);
-      const fin = await match(w2[0], w2[1], 'THE FINAL', c => `${c.make} ${c.model} is the CHAMPION!`, 7);
-      br.champ = fin.winner; champ = await champEnd(fin.winner, fin.time);
+      const P = n <= 2 ? 2 : n <= 4 ? 4 : 8, byes = P - n, pairs = [];
+      if (fmt === 'dvg') {
+        const s = [...cars].sort((x, y) => y.hp - x.hp), rest = s.slice(byes), bp = s.slice(0, byes).map(c => [c, null]), np = [];
+        for (let i = 0; i < rest.length / 2; i++) np.push([rest[i], rest[rest.length - 1 - i]]);
+        while (bp.length || np.length) { if (np.length) pairs.push(np.shift()); if (bp.length) pairs.push(bp.shift()); }
+      } else {
+        let k = 0; for (let i = 0; i < P / 2; i++) { if (i < byes) pairs.push([cars[k++], null]); else { pairs.push([cars[k], cars[k + 1]]); k += 2; } }
+      }
+      let cur = pairs.flat();
+      const br = {rounds: [cur], colors: {}}; for (let l = P / 2; l >= 1; l /= 2) br.rounds.push(Array(l).fill(null)); cars.forEach((c, i) => { br.colors[c.id] = colors[i]; });
+      let ri = 0, fin = null;
+      while (cur.length > 1) {
+        const len = cur.length, name = len === 8 ? 'QUARTER-FINALS' : len === 4 ? 'SEMI-FINALS' : 'THE FINAL', nm = cur.filter((c, i) => i % 2 === 0 && c && cur[i + 1]).length;
+        mark(name); await show(roundCard(name, len === 2 ? 'One race decides the champion' : `${nm} race${nm > 1 ? 's' : ''}  ·  ${cur.filter(Boolean).length} cars  ·  only winners move on`), 3.2);
+        const next = []; let k = 0;
+        for (let i = 0; i < len; i += 2) {
+          const a2 = cur[i], b2 = cur[i + 1]; let w;
+          if (a2 && b2) {
+            const stage = len === 2 ? 'THE FINAL' : stageOf(len === 8 ? 'qf' : 'sf', k++, nm);
+            const r = await match(a2, b2, stage, c => len === 2 ? `${c.make} ${c.model} is the CHAMPION!` : len === 4 ? `${c.make} ${c.model} is in the FINAL` : `${c.make} ${c.model} advances to the next round`, len === 2 ? 7 : 5);
+            w = r.winner; if (len === 2) fin = r;
+          } else w = a2 || b2;
+          next.push(w); br.rounds[ri + 1][i / 2] = w;
+        }
+        cur = next; ri++;
+        if (cur.length > 1) { mark(`Bracket after ${name.toLowerCase()}`); await show(bracketCard(br, cur.length === 2 ? 'THE FINAL IS SET' : 'SEMI-FINALS SET'), 4.5); }
+      }
+      champ = await champEnd(fin.winner, fin.time);
     } else if (fmt === 'gauntlet') {
       let king = cars[0], streak = 0, last = 0;
       mark('The throne'); await show(roundCard('KING OF THE HILL', `${king.make} ${king.model} defends the throne`), 3.4);
-      for (let i = 1; i < 8; i++) {
-        const stage = i === 7 ? 'FINAL CHALLENGER' : `Challenger ${i}/7`, holder = king;
+      for (let i = 1; i < n; i++) {
+        const stage = i === n - 1 ? 'FINAL CHALLENGER' : `Challenger ${i}/${n - 1}`, holder = king;
         const r = await match(holder, cars[i], stage, c => c === holder ? `${c.make} ${c.model} stays on the throne` : `NEW KING: ${c.make} ${c.model}!`);
         if (r.winner === holder) streak++; else { king = r.winner; streak = 1; }
         last = r.time;
@@ -473,12 +478,13 @@ export function initTournament({game, YT}) {
       const standing = () => cars.map((c, i) => ({car: c, color: colors[i], pts: pts[i], last: lastTxt[i], tot: tot[i], fin: lastFin[i]})).sort((a, b) => b.pts - a.pts || a.tot - b.tot);
       for (let r = 0; r < races.length; r++) {
         const stage = races.length > 1 ? `Race ${r + 1}/${races.length} · ${Math.round(races[r])} m` : `Grand Prix · ${Math.round(races[r])} m`;
-        mark(stage); await show(roundCard(stage.toUpperCase(), 'All 8 cars launch together'), 3.4);
-        api.setOverlay(gridOverlay(stage)); say(`${stage} жарысуда…`);
+        mark(stage); await show(roundCard(stage.toUpperCase(), `All ${n} cars launch together`), 3.4);
+        api.setOverlay(gridOverlay(stage, n)); say(`${stage} жарысуда…`);
         stepStart(); const t0 = api.recTime;
-        const res = await api.playGrid(cars, colors, races[r]); chk(); if (!res) throw new Error('Жарыс үзілді'); raceDone(api.recTime - t0);
+        let res = await api.playGrid(cars, colors, races[r]); chk(); if (!res) throw new Error('Жарыс үзілді');
+        if (!res.order) { let w2 = res.winner; if (w2 < 0) w2 = cars[0].hp >= cars[1].hp ? 0 : 1; res = {order: w2 === 0 ? [0, 1] : [1, 0], rows: res.rows}; } // 2 көлік: қарапайым нәтиже raceDone(api.recTime - t0);
         res.order.forEach((i, rank) => { pts[i] += POINTS[rank]; tot[i] += res.rows[i].fin; lastFin[i] = res.rows[i].fin; lastTxt[i] = `P${rank + 1} · ${res.rows[i].fin.toFixed(2)} s`; });
-        ledger.push(`${stage}: 1. ${fullName(cars[res.order[0]])} (${res.rows[res.order[0]].fin.toFixed(2)} s), 2. ${fullName(cars[res.order[1]])}, 3. ${fullName(cars[res.order[2]])}`);
+        ledger.push(`${stage}: 1. ${fullName(cars[res.order[0]])} (${res.rows[res.order[0]].fin.toFixed(2)} s)${res.order.slice(1, 3).map((ci, p) => `, ${p + 2}. ${fullName(cars[ci])}`).join('')}`);
         if (races.length > 1) { mark(`Standings after race ${r + 1}`); await show(standingsCard('Championship standings', standing(), `After race ${r + 1} of ${races.length}`), 6); }
       }
       const st = standing();
@@ -490,10 +496,10 @@ export function initTournament({game, YT}) {
 
   function metaFor(res, secs) {
     const {cars, traits, chapters, ledger, champ, fmt, title} = res, F0 = FORMATS[fmt];
-    const ttl = fmt === 'time' ? `${title}: 8 Years Side by Side 🏁 Drag Race | AI Simulation` : `${title} 🏆 ${F0.title} | AI Simulation`;
+    const ttl = fmt === 'time' ? `${title}: 8 Years Side by Side 🏁 Drag Race | AI Simulation` : `${title} 🏆 ${F0.title(cars.length)} | AI Simulation`;
     const chap = chapters.map(([t, l], i) => `${ts(i === 0 ? 0 : t)} ${l}`).join('\n');
     const description = [
-      `${F0.long} 🏁`, `🏆 Winner: ${champ.make} ${champ.model}`, '',
+      `${F0.long(cars.length)} 🏁`, `🏆 Winner: ${champ.make} ${champ.model}`, '',
       'THE CONTENDERS', ...cars.map((c, i) => `• ${c.make} ${c.model} — ${c.hp} hp, ${c.weight} kg, 0–100 ${c.zero} s — ${traits[i].title}`), '',
       '🔔 Subscribe to the channel so you do not miss the next videos! / Подпишись на канал, чтобы не пропустить другие видео!', '💬 Want other cars to race? Write the car names in the comments! / Хотите увидеть другие машины? Напишите названия в комментариях!', '❓ Which cars should be in the NEXT video? Tell us and we will test them! / Какие машины будут в СЛЕДУЮЩЕМ видео? Пишите — проверим!', '',
       'RESULTS', ...ledger, '', 'CHAPTERS', chap, '',
@@ -507,7 +513,7 @@ export function initTournament({game, YT}) {
     if (running) return;
     const dry = new URLSearchParams(location.search).has('dry');
     if (!dry && !YT.getClientId()) { $('ytClient').click(); if (!YT.getClientId()) return say('Алдымен Client ID баптаңыз', true); }
-    running = true; aborted = false; startBtn.disabled = true; stopBtn.hidden = false; [themeSel, fmtSel, $('trDist'), $('trLang')].forEach(e => { e.disabled = true; }); prev.querySelectorAll('input').forEach(i => { i.disabled = true; });
+    running = true; aborted = false; startBtn.disabled = true; stopBtn.hidden = false; [themeSel, fmtSel, $('trDist'), $('trLang'), countSel].forEach(e => { e.disabled = true; }); prev.querySelectorAll('input').forEach(i => { i.disabled = true; });
     const saved = {lang: $('raceLang').value, dist: $('raceDistance').value, fmt: $('recFormat').value, auto: $('ytAutoUp').checked, priv: $('ytPrivacy').value};
     const setSel = (id, v) => { $(id).value = v; $(id).dispatchEvent(new Event('change')); };
     try {
@@ -529,7 +535,7 @@ export function initTournament({game, YT}) {
       say(`✅ Видео дайын (${ts(secs)}). ${dry ? '(dry режим: жүктелмейді)' : 'Төменде жүктеу барысы көрсетіледі (ашық түрде).'}`);
     } catch (e) { say('❌ ' + (e.message || e), true); }
     finally {
-      clearInterval(progTimer); prog.on = false; updateProg(); api.finish(); running = false; startBtn.disabled = false; stopBtn.hidden = true; [themeSel, fmtSel, $('trDist'), $('trLang')].forEach(e => { e.disabled = false; });
+      clearInterval(progTimer); prog.on = false; updateProg(); api.finish(); running = false; startBtn.disabled = false; stopBtn.hidden = true; [themeSel, fmtSel, $('trDist'), $('trLang'), countSel].forEach(e => { e.disabled = false; }); countSel.disabled = fmtSel.value === 'time';
       setSel('raceLang', saved.lang); setSel('raceDistance', saved.dist); setSel('recFormat', saved.fmt); $('ytAutoUp').checked = saved.auto; $('ytPrivacy').value = saved.priv === 'private' ? 'public' : saved.priv;
       fresh();
     }
