@@ -72,7 +72,7 @@ export async function uploadVideo(tok, blob, {title, description, tags = [], pri
   if (!init.ok) throw new Error(await apiError(init));
   const loc = init.headers.get('Location'); if (!loc) throw new Error('Жүктеу сессиясы ашылмады');
   // Бөлшектеп (4 МБ) жүктеу: желі үзілсе, сессияның қабылдаған жерінен қайта жалғастырады
-  const total = blob.size, type = blob.type || 'video/mp4', CHUNK = 16 * 262144;
+  const total = blob.size, type = blob.type || 'video/mp4', CHUNK = 32 * 262144;
   const put = (start, end, body, range) => new Promise((res, rej) => {
     const x = new XMLHttpRequest(); x.open('PUT', loc); x.timeout = 120000;
     x.setRequestHeader('Content-Range', range);
