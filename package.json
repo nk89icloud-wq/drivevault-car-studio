@@ -1,0 +1,10 @@
+{
+  "name": "drivevault-car-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-isolation=none test/catalog.test.js test/game.test.js test/physics.test.js test/crash.test.js test/animals.test.js",
+    "check": "node --check app.js && node --check game.js && node --check physics.js && node --check render.js && node --check audio.js && node --check crashsim.js && node --check crashview.js && node --check animals.js && node --test --test-isolation=none test/catalog.test.js test/game.test.js test/physics.test.js test/crash.test.js test/animals.test.js"
+  }
+}
