@@ -1,22 +1,20 @@
-import {makeSpec, newState, step, vehiclePerformance, clamp, lerp, KMH100, QUARTER_MILE} from './physics.js?v=19';
-import {createAudio} from './audio.js?v=19';
-import * as YT from './youtube.js?v=19';
-import {saveTrack, loadTrack, clearTrack} from './music.js?v=19';
-import {loadCarPhoto, cachedPhoto} from './photos.js?v=19';
-import {drawRace, LANES, pickPaints} from './render.js?v=19';
+import {makeSpec, newState, step, vehiclePerformance, clamp, lerp, KMH100, QUARTER_MILE} from './physics.js?v=27';
+import {createAudio} from './audio.js?v=27';
+import * as YT from './youtube.js?v=27';
+import {saveTrack, loadTrack, clearTrack} from './music.js?v=27';
+import {outroCard} from './outro.js?v=27';
+import {makeRace, drawAnimalRace, ANIMALS, SPR, loadSprites} from './animals.js?v=27';
+import {loadCarPhoto, cachedPhoto} from './photos.js?v=27';
+import {drawRace, LANES, pickPaints} from './render.js?v=27';
+import {simulate, crashSummary, SCENARIOS} from './crashsim.js?v=27';
+import {drawCrash, timeline} from './crashview.js?v=27';
 
 export {vehiclePerformance};
 
 const $ = id => document.getElementById(id);
 
 export function crashMetrics(car, speedKmh, barrier = 'wall') {
-  const speed = speedKmh / 3.6;
-  const energy = .5 * car.weight * speed * speed / 1000;
-  const factor = barrier === 'pole' ? 1.5 : barrier === 'offset' ? 1.22 : 1;
-  const deformation = clamp((speedKmh / 200) * 0.95 * factor, .12, .98);
-  const crushDistance = .28 + deformation * .72;
-  const force = energy * 1000 / crushDistance / 1000;
-  return {energy: Math.round(energy), deformation: Math.round(deformation * 100), force: Math.round(force)};
+  const r = crashSummary(car, speedKmh, barrier); return {energy: r.energy, deformation: r.deformation, force: r.force};
 }
 
 export const TEXT = {
@@ -38,7 +36,7 @@ export function initGame(getCars) {
   Object.values(assets).forEach(image => image.addEventListener('load', () => { if (mode === 'race' && !running) draw(); }));
 
   let mode = 'race', token = 0, raf = 0, last = 0, running = false, acc = 0, showHud = true;
-  let world = null, crash = {progress: 0, impact: false, particles: [], metrics: null}, shake = 0;
+  let world = null, crash = {sim: null, tv: 0, done: false, hit: false}, shake = 0, an = {S: null};
   let rec = null; // {canvas, ctx, recorder, chunks, w, h, mime}
   let forced = null, keepMusic = false, card = null, cardLoopOn = false, overlay = null, matchDone = null, resultHold = 5.4, sessionOn = false, lastTags = null;
   const customSprites = {};
@@ -235,12 +233,13 @@ export function initGame(getCars) {
 
   // ---------------------------------------------------------------- басқару
   function reset() {
-    token++; frameId++; cancelAnimationFrame(raf); running = false; if (!sessionOn) cancelRecording(); audio.teardown(keepMusic); last = 0; acc = 0; shake = 0;
+    token++; frameId++; cancelAnimationFrame(raf); running = false; if (!sessionOn) { cancelRecording(); card = null; } audio.teardown(keepMusic); last = 0; acc = 0; shake = 0;
     if (mode === 'race') world = makeWorld();
-    else { const cars = getCars(); sequenceCar = [makeSpec(cars.A)]; crash = {progress: 0, impact: false, particles: [], metrics: null}; }
+    else if (mode === 'animal') buildAnimal();
+    else { const cars = getCars(); crash = {sim: null, tv: 0, done: false, hit: false}; }
     $('gameCountdown').classList.remove('show'); $('gameCountdown').textContent = '';
     $('gameMessage').classList.remove('show'); $('gameResults').innerHTML = '';
-    $('gameStart').disabled = false; if ($('gameRecord')) $('gameRecord').disabled = false;
+    $('gameStart').disabled = false; if ($('gameRecord')) $('gameRecord').disabled = false; if (mode === 'crash') $('crashPanel').hidden = false;
     setStatus(TEXT[$('raceLang')?.value || 'kk'].ready); draw();
   }
 
@@ -252,17 +251,18 @@ export function initGame(getCars) {
 
   function setMode(next) {
     mode = next; shell.classList.toggle('crash-active', mode === 'crash');
-    $('raceMode').classList.toggle('active', mode === 'race'); $('crashMode').classList.toggle('active', mode === 'crash');
+    $('raceMode').classList.toggle('active', mode === 'race'); $('crashMode').classList.toggle('active', mode === 'crash'); $('animalMode').classList.toggle('active', mode === 'animal'); $('anOptions').hidden = mode !== 'animal';
     $('crashPanel').hidden = mode !== 'crash'; $('raceOptions').hidden = mode !== 'race'; $('controlHelp').hidden = mode !== 'race';
-    $('gameRecord').hidden = mode !== 'race'; $('videoOut').hidden = mode !== 'race' || !$('videoOut').dataset.has;
-    $('gameStart').innerHTML = mode === 'race' ? 'ЖАРЫСТЫ БАСТАУ <b>▶</b>' : 'КРАШ-ТЕСТТІ БАСТАУ <b>▶</b>';
+    $('gameRecord').hidden = false; $('videoOut').hidden = !$('videoOut').dataset.has;
+    $('gameStart').innerHTML = mode === 'race' ? 'ЖАРЫСТЫ БАСТАУ <b>▶</b>' : mode === 'animal' ? 'ЖАНУАР ЖАРЫСЫН БАСТАУ <b>▶</b>' : 'КРАШ-ТЕСТТІ БАСТАУ <b>▶</b>'; $('gameRecord').innerHTML = mode === 'crash' ? '🎬 КРАШ-ТЕСТ + ВИДЕО ЖАЗУ' : '🎬 ЖАРЫС + ВИДЕО ЖАЗУ';
     reset();
   }
 
   async function start(record = false) {
     if (running) return;
     reset(); const run = token; $('gameStart').disabled = true; $('gameRecord').disabled = true;
-    if (mode === 'crash') return startCrash(run);
+    if (mode === 'crash') return startCrash(run, record);
+    if (mode === 'animal') return startAnimal(run, record);
     await audio.resume(); audio.setup(world.cars.map(c => c.spec)); audio.startMusic();
     if (record) { const ok = await startRecording(); if (!ok) { $('gameStart').disabled = false; $('gameRecord').disabled = false; return; } }
     if (run !== token) return;
@@ -288,12 +288,19 @@ export function initGame(getCars) {
     if (mode === 'race') {
       tick(dt); draw(); drawRec(); recProgress(now);
       if (world.done && now - world.doneAt > 450) { running = false; endSequence(); return; }
-    } else { updateCrash(dt); draw(); if (crash.impact === 'done') { running = false; return; } }
+    } else if (mode === 'animal') {
+      updateAnimal(dt); draw(); drawRec(); if (an.S.done) { running = false; endSequence(); return; }
+    } else { updateCrash(dt); draw(); drawRec(); if (crash.done) { running = false; finishCrash(); endSequence(); return; } }
     raf = nextFrame();
   }
 
   function finishSequence() { world.doneAt = performance.now(); audio.silence(); if (!keepMusic) audio.stopMusic(2.5); }
-  function endSequence() { if (matchDone) { const f = matchDone; matchDone = null; f(world.result); return; } $('gameStart').disabled = false; $('gameRecord').disabled = false; if (rec) stopRecording(true); }
+  function endSequence() { if (matchDone) { const f = matchDone; matchDone = null; f(world.result); return; } $('gameStart').disabled = false; $('gameRecord').disabled = false;
+    if (rec && !sessionOn) { // Shorts соңы: жазылу / коментке көлік атын жазу / келесі видео — 6 секунд
+      const r = rec, c = outroCard(6, mode === 'animal' ? 'animals' : 'cars'); card = c; tournament.setCard(c);
+      wTimeout(() => { if (rec === r && card === c) { card = null; stopRecording(true); } }, 6100);
+    } else if (rec) stopRecording(true);
+  }
 
   // ---------------------------------------------------------------- видео жазу
   function pickMime() {
@@ -325,7 +332,16 @@ export function initGame(getCars) {
     rec.save = save; try { rec.recorder.state !== 'inactive' && rec.recorder.stop(); } catch { rec = null; setRecIndicator(false); }
   }
   function cancelRecording() { if (rec) { const r = rec; r.save = false; try { r.recorder.stop(); } catch {} rec = null; setRecIndicator(false); } }
-  function drawRec() { if (!rec) return; if (card) card(rec.ctx, rec.w, rec.h); else if (world) { drawRace(rec.ctx, rec.w, rec.h, world); overlay?.(rec.ctx, rec.w, rec.h); } }
+  function hookOverlay(c, w, h) { // Shorts-тың алғашқы секундтары: көрерменді сұрақпен ұстап алу
+    if (!world || mode !== 'race' || sessionOn || (world.phase !== 'intro' && !(world.phase === 'countdown' && world.phaseT < 1.2))) return;
+    const A = world.cars[0].spec.car, B = world.cars[1]?.spec.car; if (!B) return;
+    const u = Math.min(w / 1080, h / 1920 * 1.1), a = Math.min(1, (world.phase === 'intro' ? world.phaseT : 0) / .3 + (world.phase === 'countdown' ? 1 - world.phaseT / 1.2 : 0));
+    c.save(); c.globalAlpha = Math.max(0, Math.min(1, a)); c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+    const line = (t, y, sz, col) => { c.font = `900 ${sz}px "Segoe UI", system-ui, Arial, sans-serif`; while (c.measureText(t).width > w * .92 && sz > 16) { sz -= 2; c.font = `900 ${sz}px "Segoe UI", system-ui, Arial, sans-serif`; } c.lineWidth = sz * .16; c.strokeStyle = 'rgba(0,0,0,.75)'; c.strokeText(t, w / 2, y); c.fillStyle = col; c.fillText(t, w / 2, y); };
+    line('WHO WINS? 🏁', h * .335, 92 * u, '#ffffff'); line(`${A.make} ${A.model} or ${B.make} ${B.model}`.replace(/\s*\(\d{4}\)/g, ''), h * .375, 38 * u, '#ffe08a'); line('Comment your pick 👇', h * .41, 44 * u, '#7fd6ff');
+    c.restore();
+  }
+  function drawRec() { if (!rec) return; if (card) card(rec.ctx, rec.w, rec.h); else if (rec.animal) drawAnimalRace(rec.ctx, rec.w, rec.h, an.S, {}); else if (rec.crash) drawCrash(rec.ctx, rec.w, rec.h, rec.crash, crash.tv, crashOpts()); else if (world) { drawRace(rec.ctx, rec.w, rec.h, world); overlay?.(rec.ctx, rec.w, rec.h); hookOverlay(rec.ctx, rec.w, rec.h); } }
   function setRecIndicator(on) { const el = $('recIndicator'); if (el) el.hidden = !on; if (!on && !sessionOn) { const b = $('trProg'); if (b) b.hidden = true; } }
   // Жеке жарыс жазылып жатқанда: пайыз және қалған уақыт (турнирде оны tournament.js көрсетеді)
   let progAt = 0;
@@ -344,6 +360,8 @@ export function initGame(getCars) {
 
   let lastIds = null, lastBlob = null, autoUploadHook = () => {};
   function deliver(r) {
+    if (r.animal) return deliverAnimal(r);
+    if (r.crash) return deliverCrash(r);
     const blob = new Blob(r.chunks, {type: r.mime.split(';')[0]}), url = URL.createObjectURL(blob);
     const ext = r.mime.includes('mp4') ? 'mp4' : 'webm', w = world, A = w.cars[0].spec.car, B = w.cars[1].spec.car;
     lastIds = [A.id, B.id]; lastBlob = blob; lastTags = null;
@@ -351,11 +369,12 @@ export function initGame(getCars) {
     const vid = $('videoPreview'); if (vid.dataset.url) URL.revokeObjectURL(vid.dataset.url);
     vid.src = url; vid.dataset.url = url; $('videoDownload').href = url; $('videoDownload').download = name;
     const R = w.result, win = R.winner >= 0 ? w.cars[R.winner].spec.car : null;
-    const title = `${A.make} ${A.model} vs ${B.make} ${B.model} | ${Math.round(w.D)} m Drag Race 🏁 AI Simulation #Shorts`;
+    const title = `${A.make} ${A.model} vs ${B.make} ${B.model} 🏁 Who Wins the ${Math.round(w.D)} m Drag Race? | AI Simulation #Shorts`;
     const desc = [
       `${A.make} ${A.model} (${A.hp} hp, ${A.weight} kg) vs ${B.make} ${B.model} (${B.hp} hp, ${B.weight} kg)`,
       win ? `🏆 Winner: ${win.make} ${win.model} by ${R.margin.time.toFixed(3)} s` : '🏁 Dead heat!',
       `Time: ${R.rows[0].fin.toFixed(2)} s vs ${R.rows[1].fin.toFixed(2)} s (ET ${R.rows[0].et.toFixed(2)} / ${R.rows[1].et.toFixed(2)}) · Trap: ${Math.round(R.rows[0].trap)} vs ${Math.round(R.rows[1].trap)} km/h`,
+      '', '🔔 Subscribe so you do not miss the next videos! / Подпишись, чтобы не пропустить другие видео!', '💬 Want other cars to race? Write the names in the comments! / Хотите другие машины? Напишите названия в комментариях!', '❓ Which cars in the NEXT video? / Какие машины в следующем видео?',
       '', 'AI Simulation: computer-generated physics race based on catalog power, weight and 0–100 data. Not a real race and not real footage.', '#Shorts #DragRace #CarRace #' + A.make.replace(/\W/g, '') + ' #' + B.make.replace(/\W/g, '')
     ].join('\n');
     $('videoMeta').value = `${title}\n\n${desc}`;
@@ -365,42 +384,111 @@ export function initGame(getCars) {
     toast('Видео дайын!'); autoUploadHook();
   }
 
+  function deliverCrash(r) {
+    const S = r.crash, A = S.A, B = S.B, blob = new Blob(r.chunks, {type: r.mime.split(';')[0]}), url = URL.createObjectURL(blob), ext = r.mime.includes('mp4') ? 'mp4' : 'webm';
+    const nm = c => `${c.make} ${c.model}`.replace(/\s*\(\d{4}\)$/, ''), v = Math.round(S.speedA), mA = S.sumA, mB = S.sumB;
+    const title = S.head ? `${nm(A)} vs ${nm(B)} HEAD-ON at ${v}+${v} km/h 💥 Who Survives? | Crash Test Simulation #Shorts`
+      : `${nm(A)} crash test at ${v} km/h 💥 ${S.scenario === 'pole' ? 'into a pole' : S.scenario === 'offset' ? '40% offset' : 'into a wall'} | Crash Test Simulation #Shorts`;
+    const line = (c, m) => `${nm(c)} (${c.hp} hp, ${c.weight} kg): ${m.stars}/5 stars, score ${m.score}/100 · ΔV ${m.dV.toFixed(0)} km/h · peak ${m.peak.toFixed(0)} g · front crush ${(m.crush * 100).toFixed(0)} cm · cabin intrusion ${(m.intrusion * 100).toFixed(0)} cm · ${m.verdict}`;
+    const desc = [S.head ? `Head-on collision at ${v} km/h each: ${nm(A)} vs ${nm(B)}.` : `${nm(A)} hits ${S.scenario === 'pole' ? 'a narrow pole' : S.scenario === 'offset' ? 'a 40% offset barrier' : 'a rigid barrier'} at ${v} km/h.`, '', line(A, mA), ...(mB ? [line(B, mB)] : []), '',
+      '🔔 Subscribe so you do not miss the next crash tests! / Подпишись, чтобы не пропустить другие краш-тесты!', '💬 Which car should we crash next? Write the name in the comments! / Какую машину разбить следующей? Напишите в комментариях!', '',
+      'Physics-based AI simulation (momentum and energy conserved, crush zone + restraint model). Not real footage and not an official Euro NCAP / IIHS rating.', '#Shorts #CrashTest #CarCrash #' + A.make.replace(/\W/g, '')].join('\n');
+    lastIds = 'skip'; lastBlob = blob; lastTags = ['Crash Test', 'Car Crash', 'Crash Simulation', 'AI Simulation', 'Shorts', A.make, A.model, ...(B ? [B.make, B.model] : [])].slice(0, 15);
+    const vid = $('videoPreview'); if (vid.dataset.url) URL.revokeObjectURL(vid.dataset.url);
+    vid.src = url; vid.dataset.url = url; $('videoDownload').href = url; $('videoDownload').download = ('drivevault-crash-' + nm(A) + '-' + v).toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.' + ext;
+    $('videoMeta').value = `${title}\n\n${desc}`; $('videoInfo').textContent = `${r.w}×${r.h} · ${ext.toUpperCase()} · ${(blob.size / 1048576).toFixed(1)} МБ · краш-тест`;
+    $('videoOut').dataset.has = '1'; $('videoOut').hidden = false; $('videoOut').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    toast('Краш-тест видеосы дайын!'); autoUploadHook();
+  }
+
+  // ---------------------------------------------------------------- иттер / жануарлар жарысы
+  const AN_IDS = ['anA', 'anB', 'anC', 'anD'];
+  const availAnimals = () => { const l = ANIMALS.filter(a => SPR[a.id]); return l.length >= 2 ? l : ANIMALS; }; // тек нақты видеодан алынған жануарлар
+  function fillAnimals(keep) {
+    const cat = $('anCat').value, list = availAnimals().filter(a => cat === 'all' || a.kind === cat), def = {all: ['greyhound', 'cheetah', 'whippet', 'wolf'], dog: ['greyhound', 'whippet', 'doberman', 'dalmatian'], wild: ['cheetah', 'jaguar', 'leopard', 'wolf']}[cat].filter(id => list.some(a => a.id === id)); while (def.length < 4) def.push(list[def.length % list.length].id);
+    AN_IDS.forEach((id, i) => { const el = $(id), cur = keep ? el.value : null;
+      el.innerHTML = (cat === 'all' ? ['dog', 'wild'] : [cat]).map(kd => `<optgroup label="${kd === 'dog' ? '🐕 Иттер' : '🐆 Жануарлар'}">` + list.filter(a => a.kind === kd).map(a => `<option value="${a.id}">${a.name} · ${a.kmh} км/сағ</option>`).join('') + '</optgroup>').join('');
+      el.value = list.some(a => a.id === cur) ? cur : def[i]; });
+  }
+  function syncAnimalCount() { const n = +$('anCount').value; $('anLC').hidden = n < 3; $('anLD').hidden = n < 4; }
+  function animalIds() { return AN_IDS.slice(0, +$('anCount').value).map(id => $(id).value); }
+  function buildAnimal() { an.S = makeRace(animalIds(), +$('anDist').value); }
+  fillAnimals(false); syncAnimalCount();
+  loadSprites('assets/animals/', () => { if (mode === 'animal' && !running) draw(); }).then(() => { fillAnimals(false); if (mode === 'animal' && !running) reset(); });
+  $('anCat').onchange = () => { fillAnimals(false); if (!running) reset(); };
+  $('anCount').onchange = () => { syncAnimalCount(); if (!running) reset(); };
+  [...AN_IDS, 'anDist'].forEach(id => $(id).onchange = () => { if (!running) reset(); });
+  $('anShuffle').onclick = () => {
+    const cat = $('anCat').value, pool = availAnimals().filter(a => cat === 'all' || a.kind === cat).sort(() => Math.random() - .5);
+    AN_IDS.forEach((id, i) => { $(id).value = pool[i % pool.length].id; }); if (!running) reset();
+  };
+  async function startAnimal(run, record) {
+    await audio.resume();
+    if (record) { const ok = await startRecording(); if (!ok) { $('gameStart').disabled = false; $('gameRecord').disabled = false; return; } rec.animal = an.S; }
+    if (run !== token) return;
+    setStatus('RACE'); running = true; last = performance.now(); raf = nextFrame();
+  }
+  function updateAnimal(dt) {
+    const S = an.S; S.step(dt);
+    while (S.events.length) {
+      const e = S.events.shift();
+      if (e.t === 'count') audio.beep(520, .22, .4);
+      else if (e.t === 'go') { audio.beep(1040, .6, .45); audio.bark(1, .6); }
+      else if (e.t === 'fin') audio.bark(.9 + Math.random() * .3, .45);
+      else if (e.t === 'step') audio.thud(.05 + .07 * Math.min(1, e.v / 25), 80 + e.v * 2);
+    }
+  }
+  function deliverAnimal(r) {
+    const S = r.animal, R = S.result, blob = new Blob(r.chunks, {type: r.mime.split(';')[0]}), url = URL.createObjectURL(blob), ext = r.mime.includes('mp4') ? 'mp4' : 'webm';
+    const names = S.list.map(a => a.name), emo = S.list.some(a => a.kind === 'dog') ? '🐕' : '🐆', D = Math.round(S.D);
+    lastIds = 'skip'; lastBlob = blob; lastTags = ['Dog Race', 'Animal Race', 'Fastest Animals', 'Speed Comparison', 'Simulation', 'Shorts', ...names].slice(0, 15);
+    const title = `${names.join(' vs ')} ${emo} Who Wins the ${D} m Race? | Real Speed Data #Shorts`.slice(0, 100);
+    const rows = R.rows.map((x, i) => `${i + 1}. ${x.a.name} — ${x.fin != null ? x.fin.toFixed(2) + ' s' : '-' + x.gap.toFixed(0) + ' m'} (avg ${x.avg.toFixed(0)} km/h, peak ${x.top.toFixed(0)} km/h, real top speed ≈ ${x.a.kmh} km/h)`);
+    const desc = [`${names.join(' vs ')} — ${D} m sprint.`, `🏆 Winner: ${R.winner.a.name}${R.margin != null ? ' by ' + R.margin.toFixed(2) + ' s' : ''}`, '', ...rows, '',
+      '🔔 Subscribe so you do not miss the next races! / Подпишись, чтобы не пропустить новые забеги!', '💬 Which animals or dog breeds should race next? Write them in the comments! / Какие породы или животные бегут следующими? Пишите в комментариях!', '',
+      'Computer-generated animation based on real top-speed data (acceleration and endurance are modelled). Not real footage.', '#Shorts #DogRace #AnimalRace #Cheetah #Greyhound'].join('\n');
+    const vid = $('videoPreview'); if (vid.dataset.url) URL.revokeObjectURL(vid.dataset.url);
+    vid.src = url; vid.dataset.url = url; $('videoDownload').href = url; $('videoDownload').download = ('drivevault-' + names.join('-vs-') + '-' + D + 'm').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.' + ext;
+    $('videoMeta').value = `${title}\n\n${desc}`; $('videoInfo').textContent = `${r.w}×${r.h} · ${ext.toUpperCase()} · ${(blob.size / 1048576).toFixed(1)} МБ · жануарлар жарысы`;
+    $('videoOut').dataset.has = '1'; $('videoOut').hidden = false; $('videoOut').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    toast('Жарыс видеосы дайын!'); autoUploadHook();
+  }
+
   function toast(text) { const el = $('toast'); if (!el) return; el.textContent = text; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 3200); }
 
   // ---------------------------------------------------------------- краш режимі
-  async function startCrash(run) {
-    const count = ['3', '2', '1', 'IMPACT'];
-    for (const word of count) {
-      if (run !== token) return;
-      const el = $('gameCountdown'); el.textContent = word; el.classList.add('show'); setStatus(word);
-      await new Promise(r => setTimeout(r, word === 'IMPACT' ? 480 : 650));
-    }
+  const CRASH_HOOKS = ['Can it survive? 👇 Comment a car to crash next', 'Would YOU survive this? 😱', 'Watch the front crumple — frame by frame'];
+  function crashCars() { const c = getCars(), sc = $('barrierType').value, head = !SCENARIOS[sc]?.wall; return {A: c.A, B: head ? c.B : null, sc, head, speed: +$('crashSpeed').value}; }
+  function buildCrash() {
+    const k = crashCars(), key = [k.A.id, k.A.model, k.B?.id, k.B?.model, k.sc, k.speed].join('|');
+    if (crash.sim && crash.key === key) return crash.sim;
+    crash.key = key; crash.sim = simulate({A: k.A, B: k.B, speedA: k.speed, speedB: k.speed, scenario: k.sc}); return crash.sim;
+  }
+  function crashOpts() {
+    const k = crashCars(), pa = cachedPhoto(k.A), pb = k.B ? cachedPhoto(k.B) : null, pal = k.B ? [pa?.color || '#2f8fe0', pb?.color || '#e0463a'] : [pa?.color || pickPaints(k.A, k.A)[0]];
+    if (k.B && pal[0] === pal[1]) pal[1] = '#e0463a';
+    [k.A, k.B].forEach(c => { if (c && !cachedPhoto(c) && !crash.loading?.has(c.id)) { (crash.loading ||= new Set()).add(c.id); loadCarPhoto(c).then(() => { crash.loading.delete(c.id); if (!running) draw(); }); } });
+    return {photos: [pa?.img || null, pb?.img || null], colors: pal, hook: CRASH_HOOKS[(k.speed + (k.A.id | 0)) % CRASH_HOOKS.length]};
+  }
+  async function startCrash(run, record = false) {
+    await audio.resume(); buildCrash();
+    if (record) { const ok = await startRecording(); if (!ok) { $('gameStart').disabled = false; $('gameRecord').disabled = false; return; } rec.crash = crash.sim; }
     if (run !== token) return;
-    $('gameCountdown').classList.remove('show'); running = true; last = performance.now();
-    crash.metrics = crashMetrics(getCars().A, +$('crashSpeed').value, $('barrierType').value);
-    raf = nextFrame();
+    $('crashPanel').hidden = true; crash.tv = 0; crash.done = false; crash.hit = false; crash.whoosh = false; setStatus('CRASH TEST'); running = true; last = performance.now(); raf = nextFrame();
   }
 
   function updateCrash(dt) {
-    const speed = +$('crashSpeed').value;
-    if (!crash.impact) {
-      crash.progress += dt * (.23 + speed / 230);
-      if (crash.progress >= .72) {
-        crash.progress = .72; crash.impact = true; shake = Math.min(20, speed / 7);
-        for (let i = 0; i < 44; i++) crash.particles.push({x: 0, y: 0, vx: -30 - Math.random() * 180, vy: -130 + Math.random() * 250, life: .5 + Math.random() * .8, size: 2 + Math.random() * 5});
-        setStatus('СОҚТЫҒЫСУ'); setMessage('IMPACT!', 900);
-      }
-    } else {
-      crash.progress = Math.min(1, crash.progress + dt * 1.15); shake *= .9;
-      crash.particles.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 170 * dt; p.life -= dt; });
-      if (crash.progress >= 1 && crash.particles.every(p => p.life <= 0)) finishCrash();
-    }
+    const S = buildCrash(), tl = timeline(S);
+    if (!crash.whoosh) { crash.whoosh = true; audio.whoosh?.(.35, 1.3); }
+    crash.tv += dt;
+    if (!crash.hit && crash.tv >= tl.T1) { crash.hit = true; audio.crashHit?.(Math.min(1, Math.max(S.speedA, S.speedB) / 120)); setStatus('IMPACT'); }
+    if (crash.tv >= tl.total) { crash.tv = tl.total; crash.done = true; }
   }
 
   function finishCrash() {
-    crash.impact = 'done'; $('gameStart').disabled = false; $('gameRecord').disabled = false; setStatus('ТЕСТ АЯҚТАЛДЫ');
-    const m = crash.metrics;
-    $('gameResults').innerHTML = `<div class="crash-stat"><div><b>${m.energy} кДж</b><span>Кинетикалық энергия</span></div><div><b>${m.deformation}%</b><span>Деформация</span></div><div><b>${m.force} кН</b><span>Орташа күш</span></div></div>`;
+    $('gameStart').disabled = false; $('gameRecord').disabled = false; setStatus('ТЕСТ АЯҚТАЛДЫ');
+    const S = crash.sim, m = S.sumA;
+    $('gameResults').innerHTML = `<div class="crash-stat"><div><b>${m.stars}★ · ${m.score}/100</b><span>Қауіпсіздік бағасы</span></div><div><b>${(m.crush * 100).toFixed(0)} см</b><span>Алдыңғы деформация</span></div><div><b>${m.peak.toFixed(0)} g</b><span>Ең үлкен тежелу</span></div><div><b>${m.dV.toFixed(0)} км/сағ</b><span>Жылдамдық өзгерісі (ΔV)</span></div></div>`;
   }
 
   // ---------------------------------------------------------------- сурет салу
@@ -418,40 +506,15 @@ export function initGame(getCars) {
     if (mode === 'race') {
       world.hud = showHud; world.T = lang();
       drawRace(ctx, w, h, world); overlay?.(ctx, w, h);
-    } else {
-      if (shake > .5) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake * .45);
-      drawCrash(w, h);
-    }
+    } else if (mode === 'animal') { if (an.S) drawAnimalRace(ctx, w, h, an.S, {}); }
+    else drawCrash(ctx, w, h, buildCrash(), crash.tv, crashOpts());
     ctx.restore();
-  }
-
-  function drawCrash(w, h) {
-    const car = getCars().A;
-    const ground = h * .73; let bg = ctx.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#08111a'); bg.addColorStop(.7, '#283641'); bg.addColorStop(.71, '#171c20'); bg.addColorStop(1, '#090c0f'); ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#33434f'; ctx.lineWidth = 1; for (let x = 0; x < w; x += 55) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ground); ctx.stroke(); } for (let y = 60; y < ground; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-    const barrierX = w * .78; drawBarrier(barrierX, ground, $('barrierType').value);
-    const impactT = clamp((crash.progress - .72) / .28, 0, 1), x = lerp(w * .1, barrierX - 92, clamp(crash.progress / .72, 0, 1));
-    drawSideCrashCar(x, ground - 43, Math.min(62, impactT * crash.metrics?.deformation * .72 || 0));
-    if (crash.impact) { ctx.save(); ctx.translate(barrierX - 86, ground - 65); crash.particles.filter(p => p.life > 0).forEach(p => { ctx.globalAlpha = p.life; ctx.fillStyle = Math.random() > .5 ? '#dff5ff' : '#ff9a4d'; ctx.fillRect(p.x, p.y, p.size, p.size); }); ctx.restore(); }
-    ctx.fillStyle = '#a8b6c0'; ctx.font = '700 11px Manrope'; ctx.fillText(`${car.make.toUpperCase()} ${car.model.toUpperCase()}`, 20, h - 24);
-  }
-
-  function drawBarrier(x, ground, type) {
-    if (type === 'pole') { ctx.fillStyle = '#687680'; ctx.fillRect(x - 9, ground - 220, 18, 230); ctx.fillStyle = '#aab4bb'; ctx.fillRect(x - 5, ground - 220, 5, 230); return; }
-    ctx.fillStyle = type === 'offset' ? '#d9a124' : '#77858f'; ctx.fillRect(x, ground - 190, type === 'offset' ? 48 : 95, 200); ctx.strokeStyle = '#4a565e'; ctx.lineWidth = 3; for (let y = ground - 180; y < ground; y += 28) { ctx.beginPath(); ctx.moveTo(x + 4, y); ctx.lineTo(x + (type === 'offset' ? 44 : 90), y + 18); ctx.stroke(); }
-  }
-
-  function drawSideCrashCar(x, y, deform) {
-    ctx.save(); ctx.translate(x, y); ctx.fillStyle = '#0009'; ctx.beginPath(); ctx.ellipse(0, 38, 85, 15, 0, 0, 7); ctx.fill();
-    let grad = ctx.createLinearGradient(0, -55, 0, 35); grad.addColorStop(0, '#7fd9ff'); grad.addColorStop(.28, '#087bb4'); grad.addColorStop(1, '#03273a'); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(-83, 22); ctx.lineTo(-72, -18); ctx.lineTo(-35, -30); ctx.lineTo(-10, -58); ctx.lineTo(42 - deform * .45, -54); ctx.lineTo(78 - deform, -20); ctx.lineTo(82 - deform, 24); ctx.quadraticCurveTo(0, 38, -83, 22); ctx.fill();
-    ctx.fillStyle = '#09151d'; ctx.beginPath(); ctx.moveTo(-25, -31); ctx.lineTo(-5, -52); ctx.lineTo(20, -50); ctx.lineTo(38 - deform * .4, -31); ctx.fill();
-    [-52, 48 - deform].forEach(wx => { ctx.fillStyle = '#05070a'; ctx.beginPath(); ctx.arc(wx, 25, 19, 0, 7); ctx.fill(); ctx.fillStyle = '#52616b'; ctx.beginPath(); ctx.arc(wx, 25, 8, 0, 7); ctx.fill(); }); ctx.fillStyle = '#effcff'; ctx.fillRect(68 - deform, -15, 12, 8); ctx.restore();
   }
 
   // ---------------------------------------------------------------- оқиғалар
   function applyView() {
     const portrait = ($('recFormat')?.value || 'short1080').startsWith('short');
-    shell.classList.toggle('portrait', portrait && mode === 'race');
+    shell.classList.toggle('portrait', portrait);
     setTimeout(resize, 30);
   }
 
@@ -462,14 +525,14 @@ export function initGame(getCars) {
     if (e.code === 'KeyF') $('gameFullscreen').click();
   });
   addEventListener('resize', resize);
-  $('raceMode').onclick = () => setMode('race'); $('crashMode').onclick = () => setMode('crash');
+  $('raceMode').onclick = () => setMode('race'); $('crashMode').onclick = () => setMode('crash'); $('animalMode').onclick = () => setMode('animal');
   $('gameStart').onclick = () => start(false);
   $('gameRecord').onclick = () => start(true);
   $('gameReset').onclick = reset;
   $('gameHudToggle').onclick = () => { showHud = !showHud; $('gameHudToggle').textContent = showHud ? '🎥 HUD' : 'HUD ҚОСУ'; draw(); };
   $('gameFullscreen').onclick = () => { if (!document.fullscreenElement) shell.requestFullscreen?.(); else document.exitFullscreen?.(); };
   document.addEventListener('fullscreenchange', () => setTimeout(resize, 80));
-  $('crashSpeed').oninput = e => $('crashSpeedValue').textContent = e.target.value;
+  $('crashSpeed').oninput = e => { $('crashSpeedValue').textContent = e.target.value; if (!running) reset(); };
   $('barrierType').onchange = reset;
   ['raceDistance', 'raceLang'].forEach(id => $(id).onchange = reset);
   $('recFormat').onchange = () => { applyView(); };
@@ -478,6 +541,7 @@ export function initGame(getCars) {
   const showMusic = name => { $('musicName').textContent = `🎵 ${name || DEF_NAME}`; $('musicClear').hidden = !name; };
   const useDefault = async () => { await audio.setMusicFile(null); showMusic(null); };
   loadTrack().then(async rec => { if (rec?.name && /fassounds|sue-phonk/i.test(rec.name)) { await clearTrack(); rec = null; } if (!rec?.data) return useDefault(); try { await audio.setMusicFile(await rec.data.arrayBuffer()); showMusic(rec.name); } catch { useDefault(); } }, useDefault);
+  $('musicOn').checked = audio.musicEnabled; $('musicOn').onchange = e => audio.setMusicEnabled(e.target.checked);
   $('musicBtn').onclick = () => $('musicFile').click();
   $('musicFile').onchange = async () => {
     const f = $('musicFile').files[0]; if (!f) return;
@@ -573,7 +637,7 @@ export function initGame(getCars) {
     },
     /** n көлік бір уақытта: list — көліктер, colors — әр көліктің түсі, dist — қашықтық (м). */
     async playGrid(list, colors, dist) {
-      forced = {list, colors, dist}; reset(); await audio.resume(); audio.setup(world.cars.map(c => c.spec), true); audio.startMusic();
+      forced = list.length === 2 ? {A: list[0], B: list[1], dist} : {list, colors, dist}; reset(); await audio.resume(); audio.setup(world.cars.map(c => c.spec), true); audio.startMusic();
       world.phase = 'intro'; world.phaseT = 0; running = true; last = performance.now(); raf = nextFrame();
       return new Promise(res => { matchDone = res; });
     },
