@@ -1,6 +1,6 @@
 // Контент-күнтізбе: күніне бір жұп, бірде-бір көлік қайталанбайды.
 // Күнді басу — сол жұпты автоматты таңдайды. Видео жазылса — сары, YouTube-қа жүктелсе — жасыл.
-import {CARS, fullName} from './catalog.js?v=19';
+import {CARS, fullName} from './catalog.js?v=27';
 
 const KEY = 'drivevault-calendar-v2';
 const MONTHS = ['Қаңтар', 'Ақпан', 'Наурыз', 'Сәуір', 'Мамыр', 'Маусым', 'Шілде', 'Тамыз', 'Қыркүйек', 'Қазан', 'Қараша', 'Желтоқсан'];
@@ -81,14 +81,14 @@ export function initCalendar({select, byId, runOne, signIn}) {
     batching = true; batchBtn.disabled = true;
     try {
       await signIn();
-      const LIMIT = 6; let up = 0;
+      const LIMIT = 10; let up = 0, quota = false;
       for (let j = 0; j < Math.min(todo.length, LIMIT); j++) {
         const n = todo[j]; st.current = n; save(st); select(...plan[n], n + 1);
         stats.textContent = `Автомат: ${j + 1}/${Math.min(todo.length, LIMIT)} видео жазылып, YouTube-қа жүктелуде… Бетті жаппаңыз.`;
-        await runOne(); up++;
+        try { await runOne(); up++; } catch (e) { if (/квота|quota/i.test(String(e.message || e))) { quota = true; break; } throw e; }
       }
       const left = todo.length - up;
-      stats.textContent = `Бітті: ${up} видео YouTube-қа жүктелді (жасыл).` + (left > 0 ? ` Қалған ${left} жұп күнтізбеде тұр: өзіңіз басып, видео жасап, жүктеңіз.` : '');
+      stats.textContent = `Бітті: ${up} видео YouTube-қа жүктелді (жасыл).` + (quota ? ' ⚠ Google-дың күндік квотасы таусылды (әдепкіде ~6 жүктеу/күн): қалғандары ертең, не квота өсірілген соң жүктеледі.' : '') + (left > 0 ? ` Қалған ${left} жұп күнтізбеде тұр.` : '');
     } catch (e) { stats.textContent = '❌ Автомат тоқтады: ' + (e.message || e); }
     batching = false; batchBtn.disabled = false; render();
   };
