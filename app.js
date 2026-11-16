@@ -1,9 +1,9 @@
-import {CARS, MAKES, fullName, findCar, atYear} from './catalog.js?v=19';
-import {initGame} from './game.js?v=19';
-import {loadCarPhoto} from './photos.js?v=19';
-import {initCalendar} from './calendar.js?v=19';
-import * as YT from './youtube.js?v=19';
-import {initTournament} from './tournament.js?v=19';
+import {CARS, MAKES, fullName, findCar, atYear} from './catalog.js?v=27';
+import {initGame} from './game.js?v=27';
+import {loadCarPhoto} from './photos.js?v=27';
+import {initCalendar} from './calendar.js?v=27';
+import * as YT from './youtube.js?v=27';
+import {initTournament} from './tournament.js?v=27';
 
 const $ = id => document.getElementById(id);
 const TYPES = [...new Set(CARS.map(c => c.type))].sort();
@@ -39,6 +39,19 @@ function setupSelector(side) {
   model.addEventListener('change', () => selectCar(side, Number(model.value)));
 }
 
+function setupCrashPick() {
+  ['A', 'B'].forEach(side => {
+    const el = $('crashCar' + side); if (!el) return; el.value = fullName(findCar(selected[side]));
+    el.addEventListener('focus', () => el.select());
+    const pick = () => {
+      const q = el.value.trim().toLocaleLowerCase('kk'); if (!q) return;
+      const hit = CARS.find(c => fullName(c).toLocaleLowerCase('kk') === q) || CARS.find(c => fullName(c).toLocaleLowerCase('kk').includes(q));
+      if (hit) selectCar(side, hit.id); else { showToast('Табылмады: ' + el.value); el.value = fullName(findCar(selected[side])); }
+    };
+    el.addEventListener('change', pick); el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+  });
+}
+
 function fillModels(side, preferred) {
   const make = $(`make${side}`).value;
   const cars = modelsFor(make);
@@ -56,6 +69,7 @@ function selectCar(side, id, save = true) {
   $(`model${side}`).value = car.id;
   renderSelected(side);
   if (save) addHistory(side, car);
+  const ci = $('crashCar' + side); if (ci) ci.value = fullName(car);
   resetRace();
 }
 
@@ -121,7 +135,7 @@ function resetRace() {
 }
 
 function init() {
-  setupSelector('A'); setupSelector('B'); renderSelected('A'); renderSelected('B');
+  setupSelector('A'); setupSelector('B'); setupCrashPick(); renderSelected('A'); renderSelected('B');
   options($('makeFilter'), MAKES, 'Барлық марка'); options($('typeFilter'), TYPES, 'Барлық кузов');
   renderCatalog(); renderHistory();
   ['search','makeFilter','typeFilter'].forEach(id => $(id).addEventListener(id === 'search' ? 'input' : 'change', renderCatalog));
