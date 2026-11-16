@@ -1,9 +1,9 @@
 // Ұзақ видео: 8 көліктік турнир (чвертьфинал → жартылай финал → финал), бір видеоға жазылады, YouTube-қа ашық жүктеледі.
 // Әр көліктің өз «ерекшелігі» бар (ең күшті, ең жеңіл, электр момент...), карточкалар ағылшынша (АҚШ аудиториясы үшін).
-import {CARS, fullName, atYear, estimateQuarterMile} from './catalog.js?v=27';
-import {drivetrainOf, isEV} from './physics.js?v=27';
-import {loadCarPhoto, cachedPhoto} from './photos.js?v=27';
-import {outroCard} from './outro.js?v=27';
+import {CARS, fullName, atYear, estimateQuarterMile} from './catalog.js?v=28';
+import {drivetrainOf, isEV} from './physics.js?v=28';
+import {loadCarPhoto, cachedPhoto} from './photos.js?v=28';
+import {outroCard} from './outro.js?v=28';
 
 // Фото: уақыт машинасында «(2026)» жұрнағын алып тастаймыз
 const photoKey = c => ({...c, model: String(c.model).replace(/ \(\d{4}\)$/, '')});
