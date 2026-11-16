@@ -1,9 +1,9 @@
-import {CARS, MAKES, fullName, findCar, atYear} from './catalog.js?v=28';
-import {initGame} from './game.js?v=28';
-import {loadCarPhoto} from './photos.js?v=28';
-import {initCalendar} from './calendar.js?v=28';
-import * as YT from './youtube.js?v=28';
-import {initTournament} from './tournament.js?v=28';
+import {CARS, MAKES, fullName, findCar, atYear} from './catalog.js?v=30';
+import {initGame} from './game.js?v=30';
+import {loadCarPhoto} from './photos.js?v=30';
+import {initCalendar} from './calendar.js?v=30';
+import * as YT from './youtube.js?v=30';
+import {initTournament} from './tournament.js?v=30';
 
 const $ = id => document.getElementById(id);
 const TYPES = [...new Set(CARS.map(c => c.type))].sort();
