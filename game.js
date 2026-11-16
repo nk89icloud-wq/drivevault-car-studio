@@ -1,13 +1,13 @@
-import {makeSpec, newState, step, vehiclePerformance, clamp, lerp, KMH100, QUARTER_MILE} from './physics.js?v=28';
-import {createAudio} from './audio.js?v=28';
-import * as YT from './youtube.js?v=28';
-import {saveTrack, loadTrack, clearTrack} from './music.js?v=28';
-import {outroCard} from './outro.js?v=28';
-import {makeRace, drawAnimalRace, ANIMALS, SPR, loadSprites} from './animals.js?v=28';
-import {loadCarPhoto, cachedPhoto} from './photos.js?v=28';
-import {drawRace, LANES, pickPaints} from './render.js?v=28';
-import {simulate, crashSummary, SCENARIOS} from './crashsim.js?v=28';
-import {drawCrash, timeline} from './crashview.js?v=28';
+import {makeSpec, newState, step, vehiclePerformance, clamp, lerp, KMH100, QUARTER_MILE} from './physics.js?v=30';
+import {createAudio} from './audio.js?v=30';
+import * as YT from './youtube.js?v=30';
+import {saveTrack, loadTrack, clearTrack} from './music.js?v=30';
+import {outroCard} from './outro.js?v=30';
+import {makeRace, drawAnimalRace, ANIMALS, SPR, loadSprites} from './animals.js?v=30';
+import {loadCarPhoto, cachedPhoto} from './photos.js?v=30';
+import {drawRace, LANES, pickPaints} from './render.js?v=30';
+import {simulate, crashSummary, SCENARIOS} from './crashsim.js?v=30';
+import {drawCrash, timeline} from './crashview.js?v=30';
 
 export {vehiclePerformance};
 
@@ -314,10 +314,10 @@ export function initGame(getCars) {
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const rctx = c.getContext('2d');
     const mime = pickMime();
-    const vs = c.captureStream(60), tracks = [...vs.getVideoTracks()];
+    const vs = c.captureStream(30), tracks = [...vs.getVideoTracks()];
     const as = audio.stream; if (as) tracks.push(...as.getAudioTracks());
     let recorder;
-    try { recorder = new MediaRecorder(new MediaStream(tracks), {mimeType: mime || undefined, videoBitsPerSecond: bps || (W >= 1080 ? 10e6 : 6e6), audioBitsPerSecond: 160000}); }
+    try { recorder = new MediaRecorder(new MediaStream(tracks), {mimeType: mime || undefined, videoBitsPerSecond: bps || (W >= 1080 ? 4e6 : 2.5e6), audioBitsPerSecond: 96000}); }
     catch (e) { toast('Видео жазуды бастау мүмкін болмады: ' + e.message); return false; }
     const chunks = []; recorder.ondataavailable = e => e.data?.size && chunks.push(e.data);
     rec = {t0: performance.now(), canvas: c, ctx: rctx, recorder, chunks, w: W, h: H, mime: recorder.mimeType || mime || 'video/webm', save: false};
