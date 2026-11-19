@@ -113,6 +113,7 @@ export function drawRemix(ctx, W, H, S) {
   const src = S.credit ? `Source: ${S.credit}${S.license ? ' · ' + S.license : ''}` : S.license || '';
   if (src) text(ctx, src, W / 2, H * .955, 26 * u, {w: 700, c: 'rgba(255,255,255,.85)', max: W * .9, stroke: .12});
   text(ctx, 'DRIVEVAULT', W - 30 * u, H * .02 + 24 * u, 22 * u, {a: 'right', w: 800, c: 'rgba(255,255,255,.55)', stroke: .1});
+  drawLogo(ctx, S.logo, 30 * u, 22 * u, 200 * u, 66 * u, false);
 }
 
 function drawCaptionsA(ctx, W, H, S, u, y0) {
@@ -162,6 +163,10 @@ function drawOutro(ctx, W, H, S) {
   ctx.restore();
 }
 
+function drawLogo(ctx, img, x, y, maxW, maxH, right) {
+  if (!img || !img.naturalWidth) return; const k = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k;
+  ctx.save(); ctx.globalAlpha = .92; ctx.drawImage(img, right ? x - w : x, y, w, h); ctx.restore();
+}
 // ------------------------------------------------------------------ көлденең (толық видео, 16:9)
 function drawWide(ctx, W, H, S) {
   const u = H / 1080, v = S.video, replay = S.phase === 'replay', t = replay ? S.pt : S.tc, ar = (v.videoWidth || 16) / (v.videoHeight || 9);
@@ -192,13 +197,14 @@ function drawWide(ctx, W, H, S) {
     lines.forEach((l, i) => text(ctx, l, 0, (i - (lines.length - 1) / 2) * size * 1.15, size, {max: W * .72, stroke: .1})); ctx.restore();
   }
   if (replay) {
-    ctx.save(); ctx.globalAlpha = .75 + .25 * Math.sin(S.pt * 8); ctx.fillStyle = '#ffb800'; rr(ctx, W - 340 * u, 40 * u, 300 * u, 66 * u, 14 * u); ctx.fill(); ctx.restore();
-    text(ctx, '⏪ REPLAY 0.5×', W - 190 * u, 73 * u, 36 * u, {c: '#111', stroke: 0});
+    ctx.save(); ctx.globalAlpha = .75 + .25 * Math.sin(S.pt * 8); ctx.fillStyle = '#ffb800'; rr(ctx, W - 340 * u, 130 * u, 300 * u, 66 * u, 14 * u); ctx.fill(); ctx.restore();
+    text(ctx, '⏪ REPLAY 0.5×', W - 190 * u, 163 * u, 36 * u, {c: '#111', stroke: 0});
     if (S.pt < .35) { ctx.fillStyle = `rgba(255,255,255,${(1 - S.pt / .35) * .7})`; ctx.fillRect(0, 0, W, H); }
   }
   const src = S.credit ? `Source: ${S.credit}${S.license ? ' · ' + S.license : ''}` : S.license || '';
   if (src) text(ctx, src, 40 * u, H - 40 * u, 24 * u, {a: 'left', w: 700, c: 'rgba(255,255,255,.85)', max: W * .5, stroke: .12});
   text(ctx, 'DRIVEVAULT', W - 40 * u, H - 40 * u, 24 * u, {a: 'right', w: 800, c: 'rgba(255,255,255,.6)', stroke: .1});
+  drawLogo(ctx, S.logo, W - 40 * u, 40 * u, 220 * u, 80 * u, true);
 }
 function drawOutroWide(ctx, W, H, S) {
   const t = S.pt, k = H / 1080, g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#0b0f1a'); g.addColorStop(1, '#171a2b'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -273,7 +279,7 @@ export function initRemix({YT}) {
   const $ = id => document.getElementById(id); if (!$('rmFile')) return;
   const video = Object.assign(document.createElement('video'), {playsInline: true, preload: 'auto', crossOrigin: 'anonymous'}); video.setAttribute('playsinline', '');
   const cv = $('rmCanvas'), ctx = cv.getContext('2d'), dry = new URLSearchParams(location.search).has('dry');
-  let ac = null, gain = null, dest = null, blobUrl = '', srcBlob = null, srcName = '', busy = false, uploading = false, meta = {}, pending = [], links = [];
+  let logoImg = null, ac = null, gain = null, dest = null, blobUrl = '', srcBlob = null, srcName = '', busy = false, uploading = false, meta = {}, pending = [], links = [];
   const FMT = {short1080: [1080, 1920, 4e6], short720: [720, 1280, 2.4e6], full1080: [1920, 1080, 5e6], full720: [1280, 720, 3e6]};
   const state = () => ({
     variant: document.querySelector('input[name=rmVar]:checked')?.value || 'A', hook: $('rmHook').value.trim(), credit: $('rmCredit').value.trim(), url: $('rmUrl').value.trim(),
@@ -300,7 +306,7 @@ export function initRemix({YT}) {
     $('rmRec').disabled = !video.src || !pf.ok || busy; $('rmPreview').disabled = !video.src || busy; $('rmAutoGo').disabled = busy;
     return {s, P, caps, pf};
   }
-  const S0 = (s, P, caps) => ({variant: s.variant, phase: 'clip', tc: 0, pt: 0, D: P.D, caps, hook: s.hook, credit: s.credit, license: s.license, video, rlWall: P.slow});
+  const S0 = (s, P, caps) => ({variant: s.variant, phase: 'clip', tc: 0, pt: 0, D: P.D, caps, hook: s.hook, credit: s.credit, license: s.license, video, rlWall: P.slow, logo: logoImg});
   async function still() { if (!video.src) return; const {s, P, caps} = refresh(); cv.width = 360; cv.height = 640; await seek(Math.min(s.start + 1, (video.duration || 1) - .1)); drawRemix(ctx, 360, 640, S0(s, P, caps)); }
 
   // kind: 'short' (9:16) | 'full' (16:9). record=false → алдын ала қарау
@@ -425,7 +431,7 @@ export function initRemix({YT}) {
       if (link && link !== meta.link) { const got = await fetchLink(link); meta.link = link; if (got) await loadBlob(got.blob, got.name); }
       if (!video.src || (meta.needFile && !srcBlob)) return status('YouTube-тан бейнені автоматты жүктеу YouTube шарттарына қайшы. Бейне файлын осы бетке тастаңыз немесе таңдаңыз: қалғанының бәрін өзі жасайды. (Тақырып, автор, лицензия сілтемеден алынды.)', true);
       const lang = detectLang((meta.title || srcName) + ' ' + (meta.credit || '')), AP = autoPlan(await analyze());
-      setv('rmHook', autoHook(meta.title || srcName, lang)); setv('rmCaps', autoCaps(lang, AP.len, AP.peak)); setv('rmStart', AP.start); setv('rmLen', AP.len); setv('rmReplayAt', AP.replayAt); setv('rmReplayLen', AP.replayLen);
+      setv('rmHook', $('rmHookOver').value.trim() || autoHook(meta.title || srcName, lang)); setv('rmCaps', autoCaps(lang, AP.len, AP.peak)); setv('rmStart', AP.start); setv('rmLen', AP.len); setv('rmReplayAt', AP.replayAt); setv('rmReplayLen', AP.replayLen);
       document.querySelector(`input[name=rmVar][value=${AP.variant}]`).click();
       setv('rmRights', meta.rights || (meta.credit ? 'perm' : 'own')); setv('rmCredit', meta.credit || ''); setv('rmUrl', meta.url || ''); setv('rmPrivacy', 'public');
       if (meta.licenseName) setv('rmCredit', meta.credit); refresh();
@@ -441,6 +447,7 @@ export function initRemix({YT}) {
   ['rmHook', 'rmCaps', 'rmCredit', 'rmUrl', 'rmRights', 'rmStart', 'rmLen', 'rmReplayAt', 'rmReplayLen', 'rmFmt'].forEach(id => $(id).addEventListener('input', () => { refresh(); }));
   ['rmStart', 'rmRights'].forEach(id => $(id).addEventListener('change', () => { still(); }));
   document.querySelectorAll('input[name=rmVar]').forEach(r => r.addEventListener('change', () => { refresh(); still(); }));
+  $('rmLogo').onchange = () => { const f = $('rmLogo').files[0]; if (!f) { logoImg = null; return; } const im = new Image(); im.onload = () => { logoImg = im; still(); }; im.src = URL.createObjectURL(f); };
   $('rmAutoGo').onclick = () => auto();
   $('rmPreview').onclick = () => run(false);
   $('rmRec').onclick = async () => { for (const kind of ['short', 'full']) { if (kind === 'full' && !$('rmBoth').checked) break; if (!await run(true, kind)) break; } };
