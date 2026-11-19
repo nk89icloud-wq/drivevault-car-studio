@@ -12,11 +12,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=3">
   <link rel="stylesheet" href="game.css?v=20">
+  <link rel="stylesheet" href="remix.css?v=1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#top" aria-label="DriveVault бас беті"><span class="brand-mark">DV</span><span>DRIVE<span>VAULT</span></span></a>
-    <nav aria-label="Негізгі мәзір"><a href="#tournament">Турнир</a><a href="#calendar">Күнтізбе</a><a href="#studio">Студия</a><a href="#catalog">Каталог</a><a href="#history">Тарих</a></nav>
+    <nav aria-label="Негізгі мәзір"><a href="#tournament">Турнир</a><a href="#calendar">Күнтізбе</a><a href="#studio">Студия</a><a href="#remix">Бейне өзгерту</a><a href="#catalog">Каталог</a><a href="#history">Тарих</a></nav>
     <button class="icon-button on" id="soundToggle" aria-label="Дыбысты ауыстыру">♪</button>
   </header>
 
@@ -146,6 +147,57 @@
       </div>
     </section>
 
+    <section class="section remix-section" id="remix">
+      <div class="section-heading"><div><p class="eyebrow"><span></span> Бейне өзгерту</p><h2>Бейнені Shorts-қа айналдыру</h2></div><p>Өз бейнеңді (немесе CC / рұқсаты бар бейнені) салыңыз: хук, түсініктеме, дереккөз және финал қосылып, Shorts дайын болады.</p></div>
+      <div class="rm-grid">
+        <div class="rm-left">
+          <div class="rm-warn"><b>Маңызды:</b> тек өзіңіздің, Creative Commons (CC BY) лицензиялы немесе жазбаша рұқсаты бар бейнелерді қолданыңыз. Біреудің бейнесін айналдыру/жылдамдату арқылы ContentID-тен жасыру жұмыс істемейді және арнаңыздың жабылуына әкеледі. Бұл құрал түпнұсқаны жасырмайды: ол дереккөзді көрсетіп, өз түсініктемеңізді қосады. Жүктеген соң YouTube Studio-дағы «Copyright» тексеруін қараңыз.</div>
+          <label class="rm-file">1. Бейне файлы (MP4 / WebM)<input type="file" id="rmFile" accept="video/*"></label><small id="rmName" class="rm-name"></small>
+          <div class="rm-variants">
+            <label class="rm-var"><input type="radio" name="rmVar" value="A" checked><span><b>A · Түсініктемелі Shorts</b><i>Бұлыңғыр фон, рамка, хук, субтитрлер, дереккөз</i></span></label>
+            <label class="rm-var"><input type="radio" name="rmVar" value="B"><span><b>B · Фактілер + баяу қайталау</b><i>Факт-карточкалар, 0.5× slow-mo replay, zoom</i></span></label>
+          </div>
+          <label>2. Хук (жоғарғы тақырып, өз сөзіңіз)<input id="rmHook" maxlength="80" placeholder="Мыс: Why this car stops so fast?"></label>
+          <label>3. Түсініктеме / фактілер (әр жол бөлек; уақытпен: «0:05 мәтін»)<textarea id="rmCaps" rows="6" placeholder="0 Hook line&#10;5 Fact one&#10;10 Fact two"></textarea></label>
+          <button class="button ghost compact" id="rmTemplate" type="button">✨ Үлгі мәтін қою</button>
+          <div class="rm-row">
+            <label>Басталуы (с)<input id="rmStart" type="number" min="0" step="0.5" value="0"></label>
+            <label>Ұзақтығы (с)<input id="rmLen" type="number" min="3" max="55" step="1" value="20"></label>
+            <label>Дыбыс %<input id="rmVol" type="number" min="0" max="100" value="80"></label>
+          </div>
+          <div class="rm-row" id="rmVarB" hidden>
+            <label>Қайталау басы (с)<input id="rmReplayAt" type="number" min="0" step="0.5" value="0"></label>
+            <label>Қайталау ұзақтығы<select id="rmReplayLen"><option value="3">3 с</option><option value="4" selected>4 с</option><option value="6">6 с</option><option value="8">8 с</option></select></label>
+          </div>
+          <small id="rmLenInfo" class="rm-name"></small>
+          <label>4. Бейне кімдікі?<select id="rmRights"><option value="">— таңдаңыз —</option><option value="own">Өзімдікі (өз арнам / өзім түсірдім)</option><option value="cc">Creative Commons (CC BY) — YouTube-та лицензия белгісі бар</option><option value="perm">Автордан жазбаша рұқсатым бар</option></select></label>
+          <div class="rm-row"><label>Автор / арна атауы<input id="rmCredit" placeholder="Мыс: Channel Name"></label><label>Түпнұсқа сілтемесі<input id="rmUrl" placeholder="https://youtube.com/watch?v=…"></label></div>
+          <label>Формат<select id="rmFmt"><option value="1080" selected>Shorts 1080×1920 (ұсынылады)</option><option value="720">Shorts 720×1280 (жеңіл, жылдам)</option></select></label>
+          <ul class="rm-check" id="rmCheck"></ul>
+          <div class="race-actions"><button class="button ghost compact" id="rmPreview" type="button" disabled>▶ АЛДЫН АЛА ҚАРАУ</button><button class="button record" id="rmRec" type="button" disabled>🎬 ЖАЗУ + ЖҮКТЕУ</button><button class="button ghost compact" id="rmStop" type="button">■ ТОҚТАТУ</button></div>
+          <p class="rm-status" id="rmStatus"></p>
+        </div>
+        <div class="rm-right">
+          <canvas id="rmCanvas" aria-label="Бейне алдын ала қарау"></canvas>
+          <div class="video-out" id="rmResult" hidden>
+            <video id="rmOut" controls playsinline loop></video>
+            <div class="video-side">
+              <h3>Shorts дайын</h3><p id="rmInfo"></p>
+              <a class="button ghost compact" id="rmDl" href="#" download>⬇ сақтау (міндетті емес)</a>
+              <textarea id="rmMeta" rows="9" aria-label="Атауы мен сипаттамасы"></textarea>
+              <button class="button ghost compact" id="rmCopy" type="button">АТАУ + СИПАТТАМАНЫ КӨШІРУ</button>
+              <div class="yt-auto"><h4>YouTube-қа жүктеу</h4>
+                <div class="yt-row"><label>Көрінуі<select id="rmPrivacy"><option value="private" selected>Жеке (алдымен авторлық тексеруді көремін)</option><option value="unlisted">Сілтемесі бар адамдарға</option><option value="public">Ашық</option></select></label><button class="button primary" id="rmYt" type="button">🔐 ЖҮКТЕУ</button></div>
+                <label class="yt-check"><input type="checkbox" id="rmAuto" checked> Жазылған соң өзі жүктелсін</label>
+                <div class="yt-bar" id="rmBar" hidden><i id="rmBarFill"></i></div><p id="rmYtStatus" class="yt-status"></p>
+                <button class="small-link" id="rmClient" type="button">⚙ Client ID баптау</button> <button class="small-link" id="rmForget" type="button">↺ Басқа аккаунт</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="section catalog-section" id="catalog">
       <div class="section-heading"><div><p class="eyebrow"><span></span> Толық тізім</p><h2>Көлік каталогы</h2></div><p>Марка немесе модель атауы бойынша ізде.</p></div>
       <div class="catalog-tools"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="Мысалы: Porsche 911..."></label><select id="makeFilter" aria-label="Марка бойынша сүзгі"></select><select id="typeFilter" aria-label="Кузов бойынша сүзгі"></select></div>
@@ -162,6 +214,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer><a class="brand" href="#top"><span class="brand-mark">DV</span><span>DRIVE<span>VAULT</span></span></a><p>Көлік деректері демонстрациялық мақсатта берілген.</p><span>© 2026 DriveVault</span></footer>
-  <script type="module" src="app.js?v=30"></script>
+  <script type="module" src="app.js?v=31"></script>
 </body>
 </html>
