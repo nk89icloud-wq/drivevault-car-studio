@@ -4,6 +4,7 @@ import {loadCarPhoto} from './photos.js?v=30';
 import {initCalendar} from './calendar.js?v=30';
 import * as YT from './youtube.js?v=30';
 import {initTournament} from './tournament.js?v=30';
+import {initRemix} from './remix.js?v=1';
 
 const $ = id => document.getElementById(id);
 const TYPES = [...new Set(CARS.map(c => c.type))].sort();
@@ -146,6 +147,7 @@ function init() {
   $('swap').onclick = () => { const a=selected.A,b=selected.B; selectCar('A',b,false); selectCar('B',a,false); showToast('Көліктердің орны ауыстырылды'); };
   gameController = initGame(() => ({A: carFor('A'), B: carFor('B')}));
   initTournament({game: gameController, YT});
+  try { initRemix({YT}); } catch (e) { console.error('remix', e); }
   window.__dv = gameController;
   initCalendar({byId: findCar,
     signIn: async () => {
