@@ -21,3 +21,12 @@
 .rm-right .video-out video{width:min(100%,360px);aspect-ratio:9/16;background:#000;margin-inline:auto;display:block}
 .rm-right textarea{width:100%;background:#0a0e13;color:#fff;border:1px solid #2b3641;padding:10px;font:inherit;font-size:12px}
 @media(max-width:900px){.remix-section .rm-grid{grid-template-columns:1fr}.rm-right{position:static}.rm-variants{grid-template-columns:1fr}}
+
+.rm-confirm{display:flex!important;gap:8px;align-items:center;text-transform:none!important;letter-spacing:0!important;font-size:12px!important;color:#cfd6e6!important}
+.rm-confirm input{width:auto!important;margin:0!important}
+.rm-go{width:100%;padding:16px;font-size:13px;justify-content:center}
+.rm-adv{border:1px solid #2b3641;padding:10px 12px}.rm-adv summary{cursor:pointer;color:#9fb0bc;font-size:12px}.rm-adv[open] summary{margin-bottom:12px}
+.rm-adv>*+*{margin-top:10px}
+.remix-section.drop .rm-left{outline:2px dashed #00a8ff}
+.rm-right .video-out video.wide{aspect-ratio:16/9;width:100%}
+.yt-status a{color:#7fd6ff}
