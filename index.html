@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=3">
   <link rel="stylesheet" href="game.css?v=20">
-  <link rel="stylesheet" href="remix.css?v=3">
+  <link rel="stylesheet" href="remix.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -157,6 +157,8 @@
           <label class="rm-file">Логотип (PNG, міндетті емес, шағын болып қойылады)<input type="file" id="rmLogo" accept="image/*"></label>
           <label class="rm-confirm"><input type="checkbox" id="rmConfirm"> Мен тек өзімнің / Creative Commons / рұқсаты бар бейнелерді қолданамын</label>
           <button class="button record rm-go" id="rmAutoGo" type="button">⚡ АВТО: ӨҢДЕУ + SHORTS + ТОЛЫҚ ВИДЕО ЖАРИЯЛАУ</button>
+          <div class="rm-hi"><button class="button rm-go" id="rmHiGo" type="button">🎮 ҰЗЫН БЕЙНЕДЕН ЕҢ ҚЫЗЫҚ СӘТТЕРДІ КЕСУ (GTA, ойын) + SHORTS ЖАРИЯЛАУ</button>
+            <label>Неше сәт кесу<select id="rmHiN"><option>3</option><option selected>5</option><option>8</option></select></label></div>
           <p class="rm-status" id="rmStatus"></p>
           <p id="rmYtStatus" class="yt-status"></p><div class="yt-bar" id="rmBar" hidden><i id="rmBarFill"></i></div>
           <details id="rmAdv" class="rm-adv"><summary>⚙ Қолмен баптау (міндетті емес)</summary>
@@ -206,6 +208,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer><a class="brand" href="#top"><span class="brand-mark">DV</span><span>DRIVE<span>VAULT</span></span></a><p>Көлік деректері демонстрациялық мақсатта берілген.</p><span>© 2026 DriveVault</span></footer>
-  <script type="module" src="app.js?v=34"></script>
+  <script type="module" src="app.js?v=35"></script>
 </body>
 </html>
