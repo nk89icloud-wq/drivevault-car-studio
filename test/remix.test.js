@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseCaptions, plan, preflight, buildMeta, classifyLink, cleanTitle, detectLang, autoCaps, autoPlan, autoHook, MAX_TOTAL, OUTRO} from '../remix.js';
+import {parseCaptions, plan, preflight, buildMeta, classifyLink, cleanTitle, detectLang, autoCaps, autoPlan, topMoments, autoHook, MAX_TOTAL, OUTRO} from '../remix.js';
 
 test('captions: timed, untimed and mixed lines', () => {
   const t = parseCaptions('0:05 Hello\n12 World\n20 - Third', 30);
@@ -64,4 +64,12 @@ test('auto captions are sorted, spaced, in range and have >= 3 lines in every la
     const rows = autoCaps(lang, D, pk).split('\n'), ts = rows.map(r => +r.split(' ')[0]); assert.ok(rows.length >= 3, `${lang} ${D} ${pk}`);
     assert.deepEqual([...ts].sort((a, b) => a - b), ts); assert.ok(ts.every(x => x >= 0 && x < D)); assert.ok(parseCaptions(rows.join('\n'), D).length >= 3);
   }
+});
+
+test('topMoments picks separate action peaks in time order', () => {
+  const act = Array.from({length: 300}, (_, i) => (i === 50 || i === 140 || i === 230) ? 1 : .1), m = topMoments({activity: act, step: 1, duration: 300, n: 3, len: 22});
+  assert.equal(m.length, 3); assert.deepEqual(m.map(x => Math.round(x.start / 90)), [0, 1, 2]);
+  for (let i = 0; i < 3; i++) { const pk = [50, 140, 230][i]; assert.ok(m[i].start <= pk && m[i].start + m[i].len >= pk, JSON.stringify(m[i])); }
+  assert.ok(m.every((x, i) => i === 0 || x.start >= m[i - 1].start + 22));
+  assert.equal(topMoments({activity: new Array(40).fill(.3), step: 1, duration: 40, n: 5, len: 22}).length, 1 + 0 || 1);
 });
