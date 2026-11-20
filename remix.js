@@ -265,6 +265,23 @@ export function autoPlan({activity, step, duration, maxLen = 30}) {
   return {start: +start.toFixed(1), len: Math.floor(len), peak, replayAt: +replayAt.toFixed(1), replayLen: rl, variant: len >= 10 && mean > 0 && pv / mean >= 1.35 ? 'B' : 'A'};
 }
 
+/** Ұзақ бейнеден ең әрекетті N сәтті табады (GTA: жарылыс, ату, қуу = қозғалыс + дыбыс шыңы). Сәттер қиылыспайды, уақыт бойынша сұрыпталады */
+export function topMoments({activity, step, duration, n = 5, len = 22}) {
+  const L = Math.max(5, Math.min(Math.floor(len), Math.floor(duration))), m = activity.length;
+  const sm = activity.map((_, i) => { let s = 0, c = 0; for (let j = Math.max(0, i - 1); j <= Math.min(m - 1, i + 1); j++) { s += activity[j]; c++; } return s / c; });
+  const score = sm.map((v, i) => v + .5 * Math.max(0, v - (sm[i - 1] ?? v))); // кенет өсу (жарылыс) қосымша ұпай
+  const order = score.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]), picked = [];
+  for (const [v, i] of order) {
+    if (picked.length >= n || v <= 0) break;
+    const t = i * step, start = clamp(t - L * .6, 0, Math.max(0, duration - L));
+    if (picked.every(p => Math.abs(p.start - start) >= L)) picked.push({start, score: v});
+  }
+  return picked.sort((a, b) => a.start - b.start).map(p => {
+    const i0 = Math.floor(p.start / step), i1 = Math.min(m, Math.ceil((p.start + L) / step)), q = autoPlan({activity: activity.slice(i0, i1), step, duration: L, maxLen: L});
+    return {...q, start: +(p.start + q.start).toFixed(1), replayAt: +(p.start + q.replayAt).toFixed(1), score: p.score};
+  });
+}
+
 export function buildMeta({kind = 'short', hook, credit, license, rights, url, lang = 'en'}) {
   const short = kind === 'short', title = `${hook.trim()} ${short ? '🎬 #Shorts' : '🎬'}`.replace(/\s+/g, ' ').slice(0, 100);
   const src = rights === 'own' ? '' : `Source / Credit: ${credit || 'original author'}${url ? ' — ' + url : ''}${license ? ' (' + license + ')' : ''}`;
@@ -303,7 +320,7 @@ export function initRemix({YT}) {
     $('rmVarB').hidden = s.variant !== 'B'; $('rmLenInfo').textContent = `Жалпы ұзақтығы ≈ ${P.total.toFixed(0)} с (клип ${P.D.toFixed(0)} с${s.variant === 'B' ? ` + баяу қайталау ${P.slow.toFixed(0)} с` : ''} + финал ${OUTRO} с)`;
     const pf = preflight({rights: s.rights, credit: s.credit, hook: s.hook, caps: caps.length, variant: s.variant, dur: P.D, srcDur});
     $('rmCheck').innerHTML = pf.items.map(([ok, t]) => `<li class="${ok ? 'ok' : 'no'}">${ok ? '✅' : '⚠️'} ${t}</li>`).join('');
-    $('rmRec').disabled = !video.src || !pf.ok || busy; $('rmPreview').disabled = !video.src || busy; $('rmAutoGo').disabled = busy;
+    $('rmRec').disabled = !video.src || !pf.ok || busy; $('rmPreview').disabled = !video.src || busy; $('rmAutoGo').disabled = busy; $('rmHiGo').disabled = busy;
     return {s, P, caps, pf};
   }
   const S0 = (s, P, caps) => ({variant: s.variant, phase: 'clip', tc: 0, pt: 0, D: P.D, caps, hook: s.hook, credit: s.credit, license: s.license, video, rlWall: P.slow, logo: logoImg});
@@ -403,8 +420,8 @@ export function initRemix({YT}) {
   }
 
   // ---- белсенділікті талдау: қозғалыс + дыбыс қарқыны (слоу-мо сәті мен ең жақсы бөлікті табу үшін)
-  async function analyze() {
-    const dur = video.duration, step = Math.max(.5, dur / 120), n = Math.floor(dur / step), motion = new Array(n).fill(0), audio = new Array(n).fill(0), c = document.createElement('canvas'); c.width = 32; c.height = 18;
+  async function analyze(fine = false) {
+    const dur = video.duration, step = fine ? Math.max(1, dur / 500) : Math.max(.5, dur / 120), n = Math.floor(dur / step), motion = new Array(n).fill(0), audio = new Array(n).fill(0), c = document.createElement('canvas'); c.width = 32; c.height = 18;
     const g = c.getContext('2d', {willReadFrequently: true}); let prev = null;
     for (let i = 0; i < n; i++) {
       await seek(Math.min(dur - .05, i * step)); try { g.drawImage(video, 0, 0, 32, 18); const d = g.getImageData(0, 0, 32, 18).data, cur = new Float32Array(576); for (let k = 0; k < 576; k++) cur[k] = d[k * 4] * .3 + d[k * 4 + 1] * .59 + d[k * 4 + 2] * .11; if (prev) { let s = 0; for (let k = 0; k < 576; k++) s += Math.abs(cur[k] - prev[k]); motion[i] = s / 576; } prev = cur; } catch { /* */ }
@@ -440,7 +457,33 @@ export function initRemix({YT}) {
     } catch (e) { status('❌ ' + (e.message || e), true); busy = false; refresh(); }
   }
 
-  const take = async f => { if (!f || busy) return; meta = {}; if (await loadBlob(f, f.name)) { setv('rmStart', 0); setv('rmReplayAt', 0); setv('rmLen', Math.min(25, Math.floor(video.duration))); status('Бейне жүктелді.'); await still(); if (!$('rmAdv').open && $('rmConfirm').checked) auto({fromFile: true}); } };
+  // ---- «Ең қызық сәттер»: ұзақ бейнеден (мыс. GTA) әрекетті жерлерін ғана кесіп, әрқайсысын Shorts қылып жариялайды
+  async function highlights() {
+    if (busy) return; const link = $('rmLink').value.trim();
+    if (!$('rmConfirm').checked) return status('Төмендегі белгіні бір рет қойыңыз (бейне өзіңдікі / CC / рұқсатың бар).', true);
+    $('rmAuto').checked = true; links = []; pending = []; ytStatus('');
+    try {
+      if (!dry) { if (!YT.getClientId()) { $('rmClient').click(); if (!YT.getClientId()) return status('Client ID керек (бір рет).', true); } if (!YT.hasToken() && !YT.rememberedAccount()) await YT.signIn(false); }
+      if (link && link !== meta.link) { const got = await fetchLink(link); meta.link = link; if (got) await loadBlob(got.blob, got.name); }
+      if (!video.src || (meta.needFile && !srcBlob)) return status('YouTube-тан бейнені автоматты жүктеу мүмкін емес. Бейне файлын осы бетке тастаңыз: ең қызық сәттерін өзі кесіп алады.', true);
+      const lang = detectLang(($('rmHookOver').value || meta.title || srcName) + ' ' + (meta.credit || '')), N = clamp(+$('rmHiN').value || 5, 1, 10), A = await analyze(true);
+      const moms = topMoments({...A, n: N, len: 22}); if (!moms.length) return status('Қызық сәттер табылмады.', true);
+      const base = $('rmHookOver').value.trim() || autoHook(meta.title || srcName, lang);
+      setv('rmRights', meta.rights || (meta.credit ? 'perm' : 'own')); setv('rmCredit', meta.credit || ''); setv('rmUrl', meta.url || ''); setv('rmPrivacy', 'public');
+      let k = 0;
+      for (const M of moms) {
+        k++; status(`🎬 Сәт ${k}/${moms.length}: ${M.start.toFixed(0)} с…`);
+        setv('rmHook', moms.length > 1 ? `${base} #${k}`.slice(0, 80) : base); setv('rmCaps', autoCaps(lang, M.len, M.peak)); setv('rmStart', M.start); setv('rmLen', M.len); setv('rmReplayAt', M.replayAt); setv('rmReplayLen', M.replayLen);
+        document.querySelector(`input[name=rmVar][value=${M.variant}]`).click(); refresh();
+        if (!await run(true, 'short')) return;
+      }
+      status(dry ? `✅ ${moms.length} Shorts дайын (dry).` : `✅ ${moms.length} қызық сәт кесіліп, жарияланды (${links.length}).`);
+    } catch (e) { status('❌ ' + (e.message || e), true); busy = false; refresh(); }
+  }
+
+  const take = async f => { if (!f || busy) return; meta = {}; if (await loadBlob(f, f.name)) { setv('rmStart', 0); setv('rmReplayAt', 0); setv('rmLen', Math.min(25, Math.floor(video.duration))); status('Бейне жүктелді.'); await still();
+    if (video.duration > 90) status(`Ұзақ бейне (${Math.round(video.duration / 60)} мин). «🎮 ЕҢ ҚЫЗЫҚ СӘТТЕРДІ КЕСУ» түймесін басыңыз: тек әрекетті жерлерін қияды.`);
+    else if (!$('rmAdv').open && $('rmConfirm').checked) auto({fromFile: true}); } };
   $('rmFile').onchange = () => take($('rmFile').files[0]);
   const sec = $('remix'); ['dragover', 'dragenter'].forEach(e => sec.addEventListener(e, ev => { ev.preventDefault(); sec.classList.add('drop'); })); ['dragleave', 'drop'].forEach(e => sec.addEventListener(e, () => sec.classList.remove('drop')));
   sec.addEventListener('drop', ev => { ev.preventDefault(); const f = ev.dataTransfer?.files?.[0]; if (f && f.type.startsWith('video/')) take(f); });
@@ -449,6 +492,7 @@ export function initRemix({YT}) {
   document.querySelectorAll('input[name=rmVar]').forEach(r => r.addEventListener('change', () => { refresh(); still(); }));
   $('rmLogo').onchange = () => { const f = $('rmLogo').files[0]; if (!f) { logoImg = null; return; } const im = new Image(); im.onload = () => { logoImg = im; still(); }; im.src = URL.createObjectURL(f); };
   $('rmAutoGo').onclick = () => auto();
+  $('rmHiGo').onclick = () => highlights();
   $('rmPreview').onclick = () => run(false);
   $('rmRec').onclick = async () => { for (const kind of ['short', 'full']) { if (kind === 'full' && !$('rmBoth').checked) break; if (!await run(true, kind)) break; } };
   $('rmStop').onclick = () => { busy = false; video.pause(); };
