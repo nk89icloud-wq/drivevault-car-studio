@@ -250,10 +250,16 @@ const TITLES = {
   kk: ['Мынаны көру керек 🔥', 'Сенбейсің 😱', 'Керемет сәт 🔥', 'Күтпеген сәт 👀', 'Байқадың ба? 😳']
 };
 /** Атауы автоматты: файл/сілтеме атауы мағыналы болса — сол, әйтпесе тақырыптар тізімінен (seed бойынша тұрақты) */
-export function autoTitle(name, lang, seed = 0) { const c = cleanTitle(name); if (c) return c; const l = TITLES[lang] || TITLES.ru; return l[Math.abs(Math.floor(seed)) % l.length]; }
+export function autoTitle(name, lang, seed = 0) {
+  const c = cleanTitle(name); if (c) return c; const i = Math.abs(Math.floor(seed));
+  if (lang === 'bi') return `${TITLES.en[i % TITLES.en.length]} - ${TITLES.ru[i % TITLES.ru.length]}`.slice(0, 95);
+  const l = TITLES[lang] || TITLES.en; return l[i % l.length];
+}
+/** Мәтін бір мезгілде латын және кириллицадан тұрса (мыс. «Новый ГТА 6 - New GTA 6») — екі тілді ('bi'), әйтпесе detectLang */
+export const textLang = t => /[a-z]/i.test(t) && /[а-яё]/i.test(t) && !/[әғқңөұүһі]/i.test(t) ? 'bi' : detectLang(t);
 /** Түсініктеме жолдары (клип уақытына қатысты): бейнедегі ең белсенді сәтке (peak) байланған */
 export function autoCaps(lang, D, peak) {
-  const c = CAPS[lang] || CAPS.en, pk = clamp(peak, D * .3, D * .75), rows = [[0, c[0]]];
+  const c = lang === 'bi' ? CAPS.en.map((x, i) => `${x} / ${CAPS.ru[i]}`) : (CAPS[lang] || CAPS.en), pk = clamp(peak, D * .3, D * .75), rows = [[0, c[0]]];
   if (pk - 1 >= 4) rows.push([(pk - 1) / 2, c[1]]);
   rows.push([Math.max(1, pk - 1), c[2]], [pk + 1.6, c[3]], [D - 3.5, c[4]]);
   const out = []; for (const [t, text] of rows) if (t < D - 1.2 && (!out.length || t - out.at(-1).t >= 1.8)) out.push({t: Math.max(0, +t.toFixed(1)), text});
@@ -450,12 +456,14 @@ export function initRemix({YT}) {
   }
 
   const setv = (id, v) => { $(id).value = v; };
-  const seedN = () => Math.round((video.duration || 0) * 100) + (srcBlob?.size || 0);
+  // Атау ауысып тұрады: әр жаңа бейнеге келесі тақырып (есептегіш браузерде сақталады)
+  const nextSeed = () => { let n = 0; try { n = (+localStorage.getItem('drivevault-rm-title') || 0) + 1; localStorage.setItem('drivevault-rm-title', String(n)); } catch { n = Math.floor(Math.random() * 1000); } return n; };
+  const nameLang = nm => cleanTitle(nm) ? textLang(nm) : 'bi';
+  let titleSeed = 0;
   // Атау өрісін бейне жүктелгенде автоматты толтырады (қолмен жазсаңыз — тиіспейді)
   function fillTitle() {
     const f = $('rmHookOver'); if (f.value.trim() && f.dataset.auto !== '1') return;
-    const nm = meta.title || srcName, lang = detectLang(nm + ' ' + (meta.credit || ''));
-    f.value = autoTitle(nm, lang === 'en' && !cleanTitle(nm) ? 'ru' : lang, seedN()); f.dataset.auto = '1';
+    const nm = meta.title || srcName; titleSeed = nextSeed(); f.value = autoTitle(nm, nameLang(nm), titleSeed); f.dataset.auto = '1';
   }
   $('rmHookOver').addEventListener('input', () => { $('rmHookOver').dataset.auto = '0'; });
   async function auto(opts = {}) {
@@ -469,8 +477,8 @@ export function initRemix({YT}) {
       }
       if (link && link !== meta.link) { const got = await fetchLink(link); meta.link = link; if (got) await loadBlob(got.blob, got.name); fillTitle(); }
       if (!video.src || (meta.needFile && !srcBlob)) return status('YouTube-тан бейнені автоматты жүктеу YouTube шарттарына қайшы. Бейне файлын осы бетке тастаңыз немесе таңдаңыз: қалғанының бәрін өзі жасайды. (Тақырып, автор, лицензия сілтемеден алынды.)', true);
-      const lang = detectLang(($('rmHookOver').value || meta.title || srcName) + ' ' + (meta.credit || '')), AP = autoPlan(await analyze());
-      setv('rmHook', $('rmHookOver').value.trim() || autoTitle(meta.title || srcName, lang, seedN())); setv('rmCaps', autoCaps(lang, AP.len, AP.peak)); setv('rmStart', AP.start); setv('rmLen', AP.len); setv('rmReplayAt', AP.replayAt); setv('rmReplayLen', AP.replayLen);
+      const lang = textLang($('rmHookOver').value || meta.title || srcName), AP = autoPlan(await analyze());
+      setv('rmHook', $('rmHookOver').value.trim() || autoTitle(meta.title || srcName, nameLang(meta.title || srcName), titleSeed || nextSeed())); setv('rmCaps', autoCaps(lang, AP.len, AP.peak)); setv('rmStart', AP.start); setv('rmLen', AP.len); setv('rmReplayAt', AP.replayAt); setv('rmReplayLen', AP.replayLen);
       document.querySelector(`input[name=rmVar][value=${AP.variant}]`).click();
       setv('rmRights', meta.rights || (meta.credit ? 'perm' : 'own')); setv('rmCredit', meta.credit || ''); setv('rmUrl', meta.url || ''); setv('rmPrivacy', 'public');
       if (meta.licenseName) setv('rmCredit', meta.credit); refresh();
@@ -490,14 +498,14 @@ export function initRemix({YT}) {
       if (!dry) { if (!YT.getClientId()) { $('rmClient').click(); if (!YT.getClientId()) return status('Client ID керек (бір рет).', true); } if (!YT.hasToken() && !YT.rememberedAccount()) await YT.signIn(false); }
       if (link && link !== meta.link) { const got = await fetchLink(link); meta.link = link; if (got) await loadBlob(got.blob, got.name); fillTitle(); }
       if (!video.src || (meta.needFile && !srcBlob)) return status('YouTube-тан бейнені автоматты жүктеу мүмкін емес. Бейне файлын осы бетке тастаңыз: ең қызық сәттерін өзі кесіп алады.', true);
-      const lang = detectLang(($('rmHookOver').value || meta.title || srcName) + ' ' + (meta.credit || '')), N = clamp(+$('rmHiN').value || 5, 1, 10), A = await analyze(true);
+      const lang = textLang($('rmHookOver').value || meta.title || srcName), N = clamp(+$('rmHiN').value || 5, 1, 10), A = await analyze(true);
       const moms = topMoments({...A, n: N, len: 22}); if (!moms.length) return status('Қызық сәттер табылмады.', true);
-      const base = $('rmHookOver').value.trim() || autoTitle(meta.title || srcName, lang, seedN());
+      const typed = $('rmHookOver').value.trim(), manual = typed && $('rmHookOver').dataset.auto !== '1', base = typed || autoTitle(meta.title || srcName, nameLang(meta.title || srcName), titleSeed || nextSeed()), s0 = titleSeed || nextSeed();
       setv('rmRights', meta.rights || (meta.credit ? 'perm' : 'own')); setv('rmCredit', meta.credit || ''); setv('rmUrl', meta.url || ''); setv('rmPrivacy', 'public');
       let k = 0;
       for (const M of moms) {
         k++; status(`🎬 Сәт ${k}/${moms.length}: ${M.start.toFixed(0)} с…`);
-        setv('rmHook', moms.length > 1 ? `${base} #${k}`.slice(0, 80) : base); setv('rmCaps', autoCaps(lang, M.len, M.peak)); setv('rmStart', M.start); setv('rmLen', M.len); setv('rmReplayAt', M.replayAt); setv('rmReplayLen', M.replayLen);
+        setv('rmHook', moms.length > 1 ? (manual || cleanTitle(meta.title || srcName) ? `${base} #${k}`.slice(0, 95) : autoTitle(meta.title || srcName, nameLang(meta.title || srcName), s0 + k - 1)) : base); setv('rmCaps', autoCaps(lang, M.len, M.peak)); setv('rmStart', M.start); setv('rmLen', M.len); setv('rmReplayAt', M.replayAt); setv('rmReplayLen', M.replayLen);
         document.querySelector(`input[name=rmVar][value=${M.variant}]`).click(); refresh();
         if (!await run(true, 'short')) return;
       }
