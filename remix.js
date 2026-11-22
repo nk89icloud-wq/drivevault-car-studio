@@ -71,6 +71,19 @@ function blurBg(ctx, W, H, video, t) {
   const v = ctx.createRadialGradient(W / 2, H / 2, H * .25, W / 2, H / 2, H * .75); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
 }
 
+let trk = null;
+/** Қозғалыс орталығын (x, 0..1) жұмсақ бақылайды: көлденең бейнені тік экранға толтырғанда әрекет әрқашан кадрда қалады */
+function trackFocus(S, v) {
+  const T = S._tr ||= {prev: null, fx: .5, ph: S.phase}; if (T.ph !== S.phase) { T.prev = null; T.ph = S.phase; }
+  trk ||= Object.assign(document.createElement('canvas'), {width: 32, height: 18}); const g = trk.getContext('2d', {willReadFrequently: true});
+  try {
+    g.drawImage(v, 0, 0, 32, 18); const d = g.getImageData(0, 0, 32, 18).data, cur = new Float32Array(576); for (let k = 0; k < 576; k++) cur[k] = d[k * 4] * .3 + d[k * 4 + 1] * .59 + d[k * 4 + 2] * .11;
+    if (T.prev) { let m = 0, sx = 0; for (let k = 0; k < 576; k++) { const df = Math.abs(cur[k] - T.prev[k]); if (df > 12) { m += df; sx += df * ((k % 32) + .5) / 32; } } if (m > 200) T.fx += (sx / m - T.fx) * .12; }
+    T.prev = cur;
+  } catch { /* кадр жоқ */ }
+  return T.fx;
+}
+
 /** Негізгі кадр. S: {variant, phase:'clip'|'replay'|'outro', tc (клип уақыты), pt (фаза уақыты), D, caps, hook, credit, license, replayAt, replayLen, zoomFocus, video} */
 export function drawRemix(ctx, W, H, S) {
   const u = W / 1080, v = S.video, vw = v.videoWidth || 16, vh = v.videoHeight || 9, ar = vw / vh;
@@ -78,18 +91,30 @@ export function drawRemix(ctx, W, H, S) {
   if (W > H * 1.2) return drawWide(ctx, W, H, S);
   const t = S.phase === 'clip' ? S.tc : S.pt;
   ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, W, H);
-  blurBg(ctx, W, H, v, t);
+  // Көлденең (немесе тым тар) бейне: бүкіл тік экранға толтырады, әрекетті бақылап отырады
+  const fill = S.fill !== false && (ar > 1.15 || ar < .8), replay = S.phase === 'replay';
+  if (!fill) blurBg(ctx, W, H, v, t);
   // --- негізгі кадр (рамка ішінде)
   const maxW = W - 80 * u, maxH = H * (S.variant === 'B' ? .5 : .54);
   let fw = maxW, fh = fw / ar; if (fh > maxH) { fh = maxH; fw = fh * ar; }
-  const fx = (W - fw) / 2, fy = S.variant === 'B' ? Math.max(H * .2, Math.min(H * .27, (H - fh) / 2 - 330 * u)) : Math.max(H * .2, (H - fh) / 2 - 110 * u);
-  const replay = S.phase === 'replay', zoom = replay ? 1 + .22 * ease(S.pt / Math.max(1, S.rlWall)) : 1;
+  let fx = (W - fw) / 2, fy = S.variant === 'B' ? Math.max(H * .2, Math.min(H * .27, (H - fh) / 2 - 330 * u)) : Math.max(H * .2, (H - fh) / 2 - 110 * u);
+  const zoom = replay ? 1 + .22 * ease(S.pt / Math.max(1, S.rlWall)) : 1;
+  let capY = fy + fh;
+  if (fill) {
+    const sc = Math.max(W / vw, H / vh) * zoom, sw = Math.min(vw, W / sc), sh = Math.min(vh, H / sc), fxn = trackFocus(S, v);
+    const sx = clamp(fxn * vw - sw / 2, 0, Math.max(0, vw - sw)), sy = clamp((S.focusY ?? .5) * vh - sh / 2, 0, Math.max(0, vh - sh));
+    try { ctx.drawImage(v, sx, sy, sw, sh, 0, 0, W, H); } catch { /* кадр әлі жоқ */ }
+    let g = ctx.createLinearGradient(0, 0, 0, H * .3); g.addColorStop(0, 'rgba(0,0,0,.65)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H * .3);
+    g = ctx.createLinearGradient(0, H * .55, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.78)'); ctx.fillStyle = g; ctx.fillRect(0, H * .55, W, H * .45);
+    fx = 0; fy = H * .17; fw = W; fh = 0; capY = H * .66;
+  } else {
   ctx.save(); ctx.shadowColor = replay ? 'rgba(255,184,0,.6)' : 'rgba(0,168,255,.45)'; ctx.shadowBlur = 40 * u; ctx.fillStyle = '#000'; rr(ctx, fx - 6 * u, fy - 6 * u, fw + 12 * u, fh + 12 * u, 26 * u); ctx.fill(); ctx.restore();
   ctx.save(); rr(ctx, fx, fy, fw, fh, 20 * u); ctx.clip();
   if (zoom !== 1) { const cx = fx + fw * (S.focusX ?? .5), cy = fy + fh * (S.focusY ?? .5); ctx.translate(cx, cy); ctx.scale(zoom, zoom); ctx.translate(-cx, -cy); }
   try { ctx.drawImage(v, fx, fy, fw, fh); } catch { /* кадр әлі жоқ */ }
   ctx.restore();
   ctx.save(); ctx.lineWidth = 4 * u; ctx.strokeStyle = replay ? '#ffb800' : '#00a8ff'; rr(ctx, fx, fy, fw, fh, 20 * u); ctx.stroke(); ctx.restore();
+  }
   // --- прогресс сызығы
   const prog = S.phase === 'clip' ? S.tc / S.D : 1; ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(0, 0, W, 8 * u); ctx.fillStyle = replay ? '#ffb800' : '#00a8ff'; ctx.fillRect(0, 0, W * prog, 8 * u);
   // --- хук (жоғарғы тақырып)
@@ -100,8 +125,8 @@ export function drawRemix(ctx, W, H, S) {
     lines.forEach((l, i) => text(ctx, l, 0, (i - (lines.length - 1) / 2) * size * 1.12, size, {c: i === 0 ? '#ffe45c' : '#fff', max: W * .92}));
     ctx.restore();
   }
-  if (S.variant === 'A') drawCaptionsA(ctx, W, H, S, u, fy + fh);
-  else drawFactsB(ctx, W, H, S, u, fy + fh);
+  if (S.variant === 'A') drawCaptionsA(ctx, W, H, S, u, capY);
+  else drawFactsB(ctx, W, H, S, u, capY);
   // --- slow-mo белгісі
   if (replay) {
     const a = .75 + .25 * Math.sin(S.pt * 8);
@@ -249,9 +274,20 @@ const TITLES = {
   ru: ['Это нужно видеть 🔥', 'Невероятный момент 😱', 'Ты не поверишь 👀', 'Лучший момент 🔥', 'Вот это поворот 😳', 'Ты это видел? 🤯'],
   kk: ['Мынаны көру керек 🔥', 'Сенбейсің 😱', 'Керемет сәт 🔥', 'Күтпеген сәт 👀', 'Байқадың ба? 😳']
 };
-/** Атауы автоматты: файл/сілтеме атауы мағыналы болса — сол, әйтпесе тақырыптар тізімінен (seed бойынша тұрақты) */
-export function autoTitle(name, lang, seed = 0) {
+const GAMES = [[/(?:\bgta(?![a-z])|гта)[\s-]*(vi\b|6|v\b|5|online|онлайн)?/i, m => /^(vi|6)$/i.test(m[1] || '') ? 'GTA 6' : /^(v|5)$/i.test(m[1] || '') ? 'GTA 5' : 'GTA'], [/minecraft|майнкрафт/i, () => 'Minecraft'], [/fortnite|фортнайт/i, () => 'Fortnite'], [/roblox|роблокс/i, () => 'Roblox'], [/cyberpunk|киберпанк/i, () => 'Cyberpunk 2077'], [/red dead|rdr2/i, () => 'Red Dead 2'], [/warzone|варзон/i, () => 'Warzone'], [/\bcs ?2\b|counter-?strike/i, () => 'CS2']];
+/** Бейне қай ойын/тақырып туралы екенін атауынан табады (GTA 6, Minecraft…). Табылмаса '' */
+export function detectTopic(text) { const t = String(text || ''); for (const [re, f] of GAMES) { const m = re.exec(t); if (m) return f(m); } return ''; }
+const RU_TOPIC = [[/GTA/g, 'ГТА'], [/Minecraft/g, 'Майнкрафт'], [/Fortnite/g, 'Фортнайт'], [/Roblox/g, 'Роблокс'], [/Cyberpunk/g, 'Киберпанк'], [/Red Dead/g, 'Ред Дэд']];
+export const ruTopic = t => RU_TOPIC.reduce((x, [re, r]) => x.replace(re, r), t);
+const TOPIC_TITLES = {
+  action: [['Epic Moment in {T} 🔥', 'Эпичный момент в {T} 🔥'], ['Insane Action in {T} 😱', 'Безумный экшен в {T} 😱'], ['{T}: You Won\u2019t Believe This 👀', '{T}: ты не поверишь 👀'], ['Pure Chaos in {T} 💥', 'Полный хаос в {T} 💥'], ['Best {T} Moment 🏆', 'Лучший момент в {T} 🏆']],
+  calm: [['Secret Place in {T} 🗺️', 'Секретное место в {T} 🗺️'], ['Hidden Detail in {T} 🔍', 'Скрытая деталь в {T} 🔍'], ['{T} Graphics Are Insane 🤩', 'Графика {T} — космос 🤩'], ['Did You Notice This in {T}? 👀', 'Ты заметил это в {T}? 👀'], ['New Location in {T} 📍', 'Новая локация в {T} 📍']]
+};
+/** Атауы автоматты: файл/сілтеме атауы мағыналы болса — сол; тақырып (GTA 6…) белгілі болса — соған сай екі тілді атау
+ *  (kind: 'action' — шың бар сәт, 'calm' — тыныш көрініс/орын); әйтпесе жалпы тізімнен. seed бойынша тұрақты */
+export function autoTitle(name, lang, seed = 0, {topic = '', kind = 'action'} = {}) {
   const c = cleanTitle(name); if (c) return c; const i = Math.abs(Math.floor(seed));
+  if (topic) { const l = TOPIC_TITLES[kind] || TOPIC_TITLES.action, [en, ru] = l[i % l.length]; return `${en.replace(/\{T\}/g, topic)} - ${ru.replace(/\{T\}/g, ruTopic(topic))}`.slice(0, 95); }
   if (lang === 'bi') return `${TITLES.en[i % TITLES.en.length]} - ${TITLES.ru[i % TITLES.ru.length]}`.slice(0, 95);
   const l = TITLES[lang] || TITLES.en; return l[i % l.length];
 }
@@ -295,12 +331,13 @@ export function topMoments({activity, step, duration, n = 5, len = 22}) {
   });
 }
 
-export function buildMeta({kind = 'short', hook, credit, license, rights, url, lang = 'en'}) {
+export function buildMeta({kind = 'short', hook, credit, license, rights, url, lang = 'en', topic = ''}) {
+  const tt = topic ? ' #' + topic.replace(/[^\p{L}\p{N}]/gu, '') : '';
   const short = kind === 'short', title = `${hook.trim()} ${short ? '🎬 #Shorts' : '🎬'}`.replace(/\s+/g, ' ').slice(0, 100);
   const src = rights === 'own' ? '' : `Source / Credit: ${credit || 'original author'}${url ? ' — ' + url : ''}${license ? ' (' + license + ')' : ''}`;
   const desc = [src, 'Edited with original captions and commentary.', '',
     '🔔 Subscribe so you do not miss the next videos! / Подпишись, чтобы не пропустить новые видео!', '💬 What do you think? Write in the comments! / А вы как думаете? Пишите в комментариях!', '',
-    short ? '#Shorts #Highlights #Commentary' : '#Highlights #Commentary'].filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i)).join('\n');
+    (short ? '#Shorts #Highlights #Commentary' : '#Highlights #Commentary') + tt].filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i)).join('\n');
   return `${title}\n\n${desc}`;
 }
 
@@ -318,7 +355,8 @@ export function initRemix({YT}) {
   });
   const status = (m, err) => { const el = $('rmStatus'); el.textContent = m; el.classList.toggle('err', !!err); };
   const ytStatus = (m, err) => { const el = $('rmYtStatus'); el.textContent = ''; el.classList.toggle('err', !!err); if (m instanceof Node) el.appendChild(m); else el.textContent = m; };
-  const showLinks = () => { const box = document.createElement('span'), nm = k => k === 'short' ? 'Shorts' : 'Толық видео'; links.forEach(l => { box.append(`✅ ${nm(l.kind)} жарияланды: `, Object.assign(document.createElement('a'), {href: l.out.url, target: '_blank', rel: 'noopener', textContent: 'ашу'}), ' · ', Object.assign(document.createElement('a'), {href: l.out.studio, target: '_blank', rel: 'noopener', textContent: 'Studio'}), document.createElement('br')); }); pending.filter(x => !x.done && x.err).forEach(x => box.append(`❌ ${nm(x.kind)} жүктелмеді: ${x.err}`, document.createElement('br'))); ytStatus(box, pending.some(x => !x.done && x.err)); };
+  const showLinks = () => { const box = document.createElement('span'), nm = k => k === 'short' ? 'Shorts' : 'Толық видео'; links.forEach(l => { box.append(`✅ ${nm(l.kind)} жарияланды: `, Object.assign(document.createElement('a'), {href: l.out.url, target: '_blank', rel: 'noopener', textContent: 'ашу'}), ' · ', Object.assign(document.createElement('a'), {href: l.out.studio, target: '_blank', rel: 'noopener', textContent: 'Studio'}), document.createElement('br')); }); pending.filter(x => !x.done && x.err).forEach(x => box.append(`❌ ${nm(x.kind)} жүктелмеді: ${x.err}`, document.createElement('br'))); if (pending.some(x => !x.done && /бұғаттады/.test(x.err || ''))) { const bt = Object.assign(document.createElement('button'), {type: 'button', className: 'button record', textContent: '🔑 Google-ға кіріп, жүктеуді жалғастыру'}); bt.onclick = async () => { bt.disabled = true; for (const it of pending.filter(x => !x.done)) await upload(it, true); }; box.append(bt); }
+    ytStatus(box, pending.some(x => !x.done && x.err)); };
   const tick = () => new Promise(r => { let d = false; const f = () => { if (!d) { d = true; r(); } }; setTimeout(f, 33); requestAnimationFrame(f); });
   const seek = t => new Promise(res => { if (Math.abs(video.currentTime - t) < .02) return res(); const f = () => { video.removeEventListener('seeked', f); res(); }; video.addEventListener('seeked', f); video.currentTime = t; setTimeout(f, 3000); });
 
@@ -336,7 +374,7 @@ export function initRemix({YT}) {
     $('rmRec').disabled = !video.src || !pf.ok || busy; $('rmPreview').disabled = !video.src || busy; $('rmAutoGo').disabled = busy; $('rmHiGo').disabled = busy;
     return {s, P, caps, pf};
   }
-  const S0 = (s, P, caps) => ({variant: s.variant, phase: 'clip', tc: 0, pt: 0, D: P.D, caps, hook: s.hook, credit: s.credit, license: s.license, video, rlWall: P.slow, logo: logoImg});
+  const S0 = (s, P, caps) => ({variant: s.variant, phase: 'clip', tc: 0, pt: 0, D: P.D, caps, hook: s.hook, credit: s.credit, license: s.license, video, rlWall: P.slow, logo: logoImg, fill: $('rmFill') ? $('rmFill').checked : true});
   async function still() { if (!video.src) return; const {s, P, caps} = refresh(); cv.width = 360; cv.height = 640; await seek(Math.min(s.start + 1, (video.duration || 1) - .1)); drawRemix(ctx, 360, 640, S0(s, P, caps)); }
 
   // kind: 'short' (9:16) | 'full' (16:9). record=false → алдын ала қарау
@@ -382,9 +420,9 @@ export function initRemix({YT}) {
   async function deliver(chunks, mime, W, H, s, P, kind) {
     const ext = mime.includes('mp4') ? 'mp4' : 'webm', blob = new Blob(chunks, {type: mime.split(';')[0]}), url = URL.createObjectURL(blob), vid = $('rmOut');
     if (vid.dataset.url) URL.revokeObjectURL(vid.dataset.url); vid.src = url; vid.dataset.url = url; vid.classList.toggle('wide', kind === 'full'); $('rmDl').href = url; $('rmDl').download = `drivevault-remix-${kind}.${ext}`;
-    const text = buildMeta({kind, hook: s.hook, credit: s.credit, license: s.license, rights: s.rights, url: s.url, lang: detectLang(s.hook)});
+    const text = buildMeta({kind, hook: s.hook, credit: s.credit, license: s.license, rights: s.rights, url: s.url, lang: detectLang(s.hook), topic: topicNow()});
     $('rmMeta').value = text; const words = s.hook.split(/\s+/).filter(w => w.length > 3).slice(0, 6);
-    const item = {kind, blob, text, tags: (kind === 'short' ? ['Shorts', 'Highlights', 'Commentary', ...words] : ['Highlights', 'Commentary', ...words]).slice(0, 15), done: false};
+    const item = {kind, blob, text, tags: (kind === 'short' ? ['Shorts', 'Highlights', 'Commentary', ...words] : ['Highlights', 'Commentary', ...words]).concat(topicNow() ? [topicNow(), topicNow().replace(/\s+/g, '')] : []).slice(0, 15), done: false};
     pending.push(item);
     $('rmInfo').textContent = `${kind === 'full' ? 'Толық' : 'Shorts'} · ${W}×${H} · ${ext.toUpperCase()} · ${(blob.size / 1048576).toFixed(1)} МБ · ${P.total.toFixed(0)} с · нұсқа ${s.variant}`;
     $('rmResult').hidden = false; status(`✅ ${kind === 'full' ? 'Толық видео' : 'Shorts'} дайын.`);
@@ -402,7 +440,7 @@ export function initRemix({YT}) {
       $('rmBar').hidden = false; $('rmBarFill').style.width = '0%'; ytStatus(`Арна: «${ch.title}». ${item.kind === 'full' ? 'Толық видео' : 'Shorts'} жүктеліп жатыр…`);
       const out = await YT.uploadVideo(tok, item.blob, {title, description, tags: item.tags, privacy: $('rmPrivacy').value, isShort: item.kind === 'short', onProgress: p => { $('rmBarFill').style.width = (p * 100).toFixed(0) + '%'; }});
       item.done = true; item.err = ''; item.blob = null; links.push({kind: item.kind, out}); showLinks();
-    } catch (e) { item.err = (e.message || String(e)) + ' (видео жадта тұр, «ЖҮКТЕУ» түймесін басыңыз)'; showLinks(); } finally { uploading = false; $('rmYt').disabled = false; }
+    } catch (e) { const m = e.message || String(e); item.err = /popup|терезе/i.test(m) ? 'Google кіру терезесін браузер бұғаттады (кіру тек түйме басқанда ашылады; сағатына бір рет қана керек)' : m; showLinks(); } finally { uploading = false; $('rmYt').disabled = false; }
   }
 
   // ---- бейнені жүктеу: файл не сілтеме
@@ -459,12 +497,17 @@ export function initRemix({YT}) {
   // Атау ауысып тұрады: әр жаңа бейнеге келесі тақырып (есептегіш браузерде сақталады)
   const nextSeed = () => { let n = 0; try { n = (+localStorage.getItem('drivevault-rm-title') || 0) + 1; localStorage.setItem('drivevault-rm-title', String(n)); } catch { n = Math.floor(Math.random() * 1000); } return n; };
   const nameLang = nm => cleanTitle(nm) ? textLang(nm) : 'bi';
+  // Бейне қай тақырыпта: өріс (сақталады) → атау/сілтеме/жазылған мәтіндегі GTA, Minecraft… → бос
+  const topicNow = () => { const v = $('rmTopic').value.trim(); return v ? (detectTopic(v) || v) : detectTopic([meta.title, srcName, $('rmHookOver').dataset.auto === '1' ? '' : $('rmHookOver').value].join(' ')); };
+  const makeTitle = (seed, kind = 'action') => { const nm = meta.title || srcName; return autoTitle(nm, nameLang(nm), seed, {topic: topicNow(), kind}); };
   let titleSeed = 0;
   // Атау өрісін бейне жүктелгенде автоматты толтырады (қолмен жазсаңыз — тиіспейді)
   function fillTitle() {
     const f = $('rmHookOver'); if (f.value.trim() && f.dataset.auto !== '1') return;
-    const nm = meta.title || srcName; titleSeed = nextSeed(); f.value = autoTitle(nm, nameLang(nm), titleSeed); f.dataset.auto = '1';
+    const nm = meta.title || srcName; titleSeed = nextSeed(); f.value = makeTitle(titleSeed); f.dataset.auto = '1';
   }
+  try { $('rmTopic').value = localStorage.getItem('drivevault-rm-topic') || ''; } catch { /* */ }
+  $('rmTopic').addEventListener('input', () => { try { localStorage.setItem('drivevault-rm-topic', $('rmTopic').value.trim()); } catch { /* */ } if (srcBlob) { $('rmHookOver').dataset.auto === '1' && ($('rmHookOver').value = makeTitle(titleSeed || nextSeed())); } });
   $('rmHookOver').addEventListener('input', () => { $('rmHookOver').dataset.auto = '0'; });
   async function auto(opts = {}) {
     if (busy) return; const link = $('rmLink').value.trim();
@@ -478,14 +521,15 @@ export function initRemix({YT}) {
       if (link && link !== meta.link) { const got = await fetchLink(link); meta.link = link; if (got) await loadBlob(got.blob, got.name); fillTitle(); }
       if (!video.src || (meta.needFile && !srcBlob)) return status('YouTube-тан бейнені автоматты жүктеу YouTube шарттарына қайшы. Бейне файлын осы бетке тастаңыз немесе таңдаңыз: қалғанының бәрін өзі жасайды. (Тақырып, автор, лицензия сілтемеден алынды.)', true);
       const lang = textLang($('rmHookOver').value || meta.title || srcName), AP = autoPlan(await analyze());
-      setv('rmHook', $('rmHookOver').value.trim() || autoTitle(meta.title || srcName, nameLang(meta.title || srcName), titleSeed || nextSeed())); setv('rmCaps', autoCaps(lang, AP.len, AP.peak)); setv('rmStart', AP.start); setv('rmLen', AP.len); setv('rmReplayAt', AP.replayAt); setv('rmReplayLen', AP.replayLen);
+      { const f = $('rmHookOver'); if (!f.value.trim() || f.dataset.auto === '1') { f.value = makeTitle(titleSeed || nextSeed(), AP.variant === 'B' ? 'action' : 'calm'); f.dataset.auto = '1'; } }
+      setv('rmHook', $('rmHookOver').value.trim()); setv('rmCaps', autoCaps(lang, AP.len, AP.peak)); setv('rmStart', AP.start); setv('rmLen', AP.len); setv('rmReplayAt', AP.replayAt); setv('rmReplayLen', AP.replayLen);
       document.querySelector(`input[name=rmVar][value=${AP.variant}]`).click();
       setv('rmRights', meta.rights || (meta.credit ? 'perm' : 'own')); setv('rmCredit', meta.credit || ''); setv('rmUrl', meta.url || ''); setv('rmPrivacy', 'public');
       if (meta.licenseName) setv('rmCredit', meta.credit); refresh();
       for (const kind of ['short', 'full']) { const it = await run(true, kind); if (!it) return; }
-      if (!dry) for (const it of pending.filter(x => !x.done)) await upload(it, false); // сәтсіз жүктелгенді бір рет қайталау
+      if (!dry && !pending.some(x => /бұғаттады/.test(x.err || ''))) for (const it of pending.filter(x => !x.done)) await upload(it, false); // сәтсіз жүктелгенді бір рет қайталау
       const bad = pending.filter(x => !x.done);
-      status(dry ? '✅ Екі видео дайын (dry: жүктелмейді).' : !bad.length ? '✅ Shorts және толық видео жарияланды.' : `⚠️ ${bad.map(x => x.kind === 'short' ? 'Shorts' : 'Толық видео').join(', ')} жарияланбады: себебін төменнен қараңыз.`, !!bad.length);
+      status(dry ? '✅ Екі видео дайын (dry: жүктелмейді).' : !bad.length ? '✅ Shorts және толық видео жарияланды.' : (pending.some(x => /бұғаттады/.test(x.err || '')) ? '🔑 Видеолар дайын. Бір рет «Google-ға кіріп, жүктеуді жалғастыру» түймесін басыңыз: екеуі де автоматты жүктеледі.' : `⚠️ ${bad.map(x => x.kind === 'short' ? 'Shorts' : 'Толық видео').join(', ')} жарияланбады: себебін төменнен қараңыз.`), !!bad.length);
     } catch (e) { status('❌ ' + (e.message || e), true); busy = false; refresh(); }
   }
 
@@ -500,16 +544,16 @@ export function initRemix({YT}) {
       if (!video.src || (meta.needFile && !srcBlob)) return status('YouTube-тан бейнені автоматты жүктеу мүмкін емес. Бейне файлын осы бетке тастаңыз: ең қызық сәттерін өзі кесіп алады.', true);
       const lang = textLang($('rmHookOver').value || meta.title || srcName), N = clamp(+$('rmHiN').value || 5, 1, 10), A = await analyze(true);
       const moms = topMoments({...A, n: N, len: 22}); if (!moms.length) return status('Қызық сәттер табылмады.', true);
-      const typed = $('rmHookOver').value.trim(), manual = typed && $('rmHookOver').dataset.auto !== '1', base = typed || autoTitle(meta.title || srcName, nameLang(meta.title || srcName), titleSeed || nextSeed()), s0 = titleSeed || nextSeed();
+      const typed = $('rmHookOver').value.trim(), manual = typed && $('rmHookOver').dataset.auto !== '1', base = typed || makeTitle(titleSeed || nextSeed()), s0 = titleSeed || nextSeed();
       setv('rmRights', meta.rights || (meta.credit ? 'perm' : 'own')); setv('rmCredit', meta.credit || ''); setv('rmUrl', meta.url || ''); setv('rmPrivacy', 'public');
       let k = 0;
       for (const M of moms) {
         k++; status(`🎬 Сәт ${k}/${moms.length}: ${M.start.toFixed(0)} с…`);
-        setv('rmHook', moms.length > 1 ? (manual || cleanTitle(meta.title || srcName) ? `${base} #${k}`.slice(0, 95) : autoTitle(meta.title || srcName, nameLang(meta.title || srcName), s0 + k - 1)) : base); setv('rmCaps', autoCaps(lang, M.len, M.peak)); setv('rmStart', M.start); setv('rmLen', M.len); setv('rmReplayAt', M.replayAt); setv('rmReplayLen', M.replayLen);
+        setv('rmHook', moms.length > 1 ? (manual || cleanTitle(meta.title || srcName) ? `${base} #${k}`.slice(0, 95) : makeTitle(s0 + k - 1, M.variant === 'B' ? 'action' : 'calm')) : base); setv('rmCaps', autoCaps(lang, M.len, M.peak)); setv('rmStart', M.start); setv('rmLen', M.len); setv('rmReplayAt', M.replayAt); setv('rmReplayLen', M.replayLen);
         document.querySelector(`input[name=rmVar][value=${M.variant}]`).click(); refresh();
         if (!await run(true, 'short')) return;
       }
-      if (!dry) for (const it of pending.filter(x => !x.done)) await upload(it, false);
+      if (!dry && !pending.some(x => /бұғаттады/.test(x.err || ''))) for (const it of pending.filter(x => !x.done)) await upload(it, false);
       const bad3 = pending.filter(x => !x.done);
       status(dry ? `✅ ${moms.length} Shorts дайын (dry).` : !bad3.length ? `✅ ${moms.length} қызық сәт кесіліп, жарияланды.` : `⚠️ ${links.length}/${moms.length} жарияланды; қалғанының себебін төменнен қараңыз.`, !!bad3.length);
     } catch (e) { status('❌ ' + (e.message || e), true); busy = false; refresh(); }
