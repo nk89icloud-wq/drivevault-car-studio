@@ -232,7 +232,7 @@ export function classifyLink(raw) {
 }
 export function cleanTitle(s) {
   let t = String(s || '').replace(/\.[a-z0-9]{2,4}$/i, '').replace(/[_]+/g, ' ').replace(/#\S+/g, ' ').replace(/[\[(【][^\])】]*(official|video|hd|4k|1080p|720p|lyrics|clip|shorts)[^\])】]*[\])】]/gi, ' ').replace(/\b(official\s+(music\s+)?(video|clip|trailer)|official|full hd|4k|1080p|720p)\b/gi, ' ').replace(/\s+/g, ' ').trim();
-  if (/^(whatsapp|img|vid|video|screen ?record|pxl|mov)\b/i.test(t) || /^[\d\s\-.:at]+$/i.test(t) || t.length < 4) return '';
+  if (/^(whatsapp|img|vid|video|screen ?record|pxl|mov)\b/i.test(t) || /^[\d\s\-.:at]+$/i.test(t) || /^[0-9a-f]{6,}([-\s][0-9a-f]{3,})+$/i.test(t) || /^[0-9a-f]{16,}$/i.test(t) || t.length < 4) return '';
   if (t.length > 60) { t = t.slice(0, 60); t = t.slice(0, Math.max(20, t.lastIndexOf(' '))).trim(); }
   return t;
 }
@@ -244,6 +244,13 @@ const CAPS = {
   kk: ['Мұқият қара 👀', 'Бөлшектерге назар аудар…', 'Міне, сол сәт 🔥', 'Байқадың ба?', 'Пікіріңді жаз 👇']
 };
 export const autoHook = (title, lang) => cleanTitle(title) || HOOKS[lang] || HOOKS.en;
+const TITLES = {
+  en: ['You Won\u2019t Believe This 😱', 'Insane Moment 🔥', 'Wait For It 👀', 'Best Moment Ever 🔥', 'This Changes Everything 🤯', 'Did You See That? 😳'],
+  ru: ['Это нужно видеть 🔥', 'Невероятный момент 😱', 'Ты не поверишь 👀', 'Лучший момент 🔥', 'Вот это поворот 😳', 'Ты это видел? 🤯'],
+  kk: ['Мынаны көру керек 🔥', 'Сенбейсің 😱', 'Керемет сәт 🔥', 'Күтпеген сәт 👀', 'Байқадың ба? 😳']
+};
+/** Атауы автоматты: файл/сілтеме атауы мағыналы болса — сол, әйтпесе тақырыптар тізімінен (seed бойынша тұрақты) */
+export function autoTitle(name, lang, seed = 0) { const c = cleanTitle(name); if (c) return c; const l = TITLES[lang] || TITLES.ru; return l[Math.abs(Math.floor(seed)) % l.length]; }
 /** Түсініктеме жолдары (клип уақытына қатысты): бейнедегі ең белсенді сәтке (peak) байланған */
 export function autoCaps(lang, D, peak) {
   const c = CAPS[lang] || CAPS.en, pk = clamp(peak, D * .3, D * .75), rows = [[0, c[0]]];
@@ -443,6 +450,14 @@ export function initRemix({YT}) {
   }
 
   const setv = (id, v) => { $(id).value = v; };
+  const seedN = () => Math.round((video.duration || 0) * 100) + (srcBlob?.size || 0);
+  // Атау өрісін бейне жүктелгенде автоматты толтырады (қолмен жазсаңыз — тиіспейді)
+  function fillTitle() {
+    const f = $('rmHookOver'); if (f.value.trim() && f.dataset.auto !== '1') return;
+    const nm = meta.title || srcName, lang = detectLang(nm + ' ' + (meta.credit || ''));
+    f.value = autoTitle(nm, lang === 'en' && !cleanTitle(nm) ? 'ru' : lang, seedN()); f.dataset.auto = '1';
+  }
+  $('rmHookOver').addEventListener('input', () => { $('rmHookOver').dataset.auto = '0'; });
   async function auto(opts = {}) {
     if (busy) return; const link = $('rmLink').value.trim();
     if (!$('rmConfirm').checked) return status('Төмендегі белгіні бір рет қойыңыз (бейне өзіңдікі / CC / рұқсатың бар).', true);
@@ -452,10 +467,10 @@ export function initRemix({YT}) {
         if (!YT.getClientId()) { $('rmClient').click(); if (!YT.getClientId()) return status('Client ID керек (бір рет).', true); }
         if (!YT.hasToken() && !YT.rememberedAccount()) await YT.signIn(false);
       }
-      if (link && link !== meta.link) { const got = await fetchLink(link); meta.link = link; if (got) await loadBlob(got.blob, got.name); }
+      if (link && link !== meta.link) { const got = await fetchLink(link); meta.link = link; if (got) await loadBlob(got.blob, got.name); fillTitle(); }
       if (!video.src || (meta.needFile && !srcBlob)) return status('YouTube-тан бейнені автоматты жүктеу YouTube шарттарына қайшы. Бейне файлын осы бетке тастаңыз немесе таңдаңыз: қалғанының бәрін өзі жасайды. (Тақырып, автор, лицензия сілтемеден алынды.)', true);
-      const lang = detectLang((meta.title || srcName) + ' ' + (meta.credit || '')), AP = autoPlan(await analyze());
-      setv('rmHook', $('rmHookOver').value.trim() || autoHook(meta.title || srcName, lang)); setv('rmCaps', autoCaps(lang, AP.len, AP.peak)); setv('rmStart', AP.start); setv('rmLen', AP.len); setv('rmReplayAt', AP.replayAt); setv('rmReplayLen', AP.replayLen);
+      const lang = detectLang(($('rmHookOver').value || meta.title || srcName) + ' ' + (meta.credit || '')), AP = autoPlan(await analyze());
+      setv('rmHook', $('rmHookOver').value.trim() || autoTitle(meta.title || srcName, lang, seedN())); setv('rmCaps', autoCaps(lang, AP.len, AP.peak)); setv('rmStart', AP.start); setv('rmLen', AP.len); setv('rmReplayAt', AP.replayAt); setv('rmReplayLen', AP.replayLen);
       document.querySelector(`input[name=rmVar][value=${AP.variant}]`).click();
       setv('rmRights', meta.rights || (meta.credit ? 'perm' : 'own')); setv('rmCredit', meta.credit || ''); setv('rmUrl', meta.url || ''); setv('rmPrivacy', 'public');
       if (meta.licenseName) setv('rmCredit', meta.credit); refresh();
@@ -473,11 +488,11 @@ export function initRemix({YT}) {
     $('rmAuto').checked = true; links = []; pending = []; ytStatus('');
     try {
       if (!dry) { if (!YT.getClientId()) { $('rmClient').click(); if (!YT.getClientId()) return status('Client ID керек (бір рет).', true); } if (!YT.hasToken() && !YT.rememberedAccount()) await YT.signIn(false); }
-      if (link && link !== meta.link) { const got = await fetchLink(link); meta.link = link; if (got) await loadBlob(got.blob, got.name); }
+      if (link && link !== meta.link) { const got = await fetchLink(link); meta.link = link; if (got) await loadBlob(got.blob, got.name); fillTitle(); }
       if (!video.src || (meta.needFile && !srcBlob)) return status('YouTube-тан бейнені автоматты жүктеу мүмкін емес. Бейне файлын осы бетке тастаңыз: ең қызық сәттерін өзі кесіп алады.', true);
       const lang = detectLang(($('rmHookOver').value || meta.title || srcName) + ' ' + (meta.credit || '')), N = clamp(+$('rmHiN').value || 5, 1, 10), A = await analyze(true);
       const moms = topMoments({...A, n: N, len: 22}); if (!moms.length) return status('Қызық сәттер табылмады.', true);
-      const base = $('rmHookOver').value.trim() || autoHook(meta.title || srcName, lang);
+      const base = $('rmHookOver').value.trim() || autoTitle(meta.title || srcName, lang, seedN());
       setv('rmRights', meta.rights || (meta.credit ? 'perm' : 'own')); setv('rmCredit', meta.credit || ''); setv('rmUrl', meta.url || ''); setv('rmPrivacy', 'public');
       let k = 0;
       for (const M of moms) {
@@ -492,7 +507,7 @@ export function initRemix({YT}) {
     } catch (e) { status('❌ ' + (e.message || e), true); busy = false; refresh(); }
   }
 
-  const take = async f => { if (!f || busy) return; meta = {}; if (await loadBlob(f, f.name)) { setv('rmStart', 0); setv('rmReplayAt', 0); setv('rmLen', Math.min(25, Math.floor(video.duration))); status('Бейне жүктелді.'); await still();
+  const take = async f => { if (!f || busy) return; meta = {}; if (await loadBlob(f, f.name)) { setv('rmStart', 0); setv('rmReplayAt', 0); setv('rmLen', Math.min(25, Math.floor(video.duration))); status('Бейне жүктелді.'); fillTitle(); await still();
     if (video.duration > 90) status(`Ұзақ бейне (${Math.round(video.duration / 60)} мин). «🎮 ЕҢ ҚЫЗЫҚ СӘТТЕРДІ КЕСУ» түймесін басыңыз: тек әрекетті жерлерін қияды.`);
     else if (!$('rmAdv').open && $('rmConfirm').checked) auto({fromFile: true}); } };
   $('rmFile').onchange = () => take($('rmFile').files[0]);
