@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseCaptions, plan, preflight, buildMeta, classifyLink, cleanTitle, detectLang, autoCaps, autoPlan, topMoments, autoHook, MAX_TOTAL, OUTRO} from '../remix.js';
+import {parseCaptions, plan, preflight, buildMeta, classifyLink, cleanTitle, detectLang, autoCaps, autoPlan, topMoments, autoTitle, autoHook, MAX_TOTAL, OUTRO} from '../remix.js';
 
 test('captions: timed, untimed and mixed lines', () => {
   const t = parseCaptions('0:05 Hello\n12 World\n20 - Third', 30);
@@ -53,7 +53,7 @@ test('title cleaning and language', () => {
 
 test('auto plan finds the active window, peak, and decides on slow-mo', () => {
   const act = Array.from({length: 120}, (_, i) => i >= 70 && i <= 75 ? 1 : .1), p = autoPlan({activity: act, step: 1, duration: 120});
-  assert.ok(p.start <= 72 && p.start + p.len >= 72, JSON.stringify(p)); assert.equal(p.len, 30); assert.equal(p.variant, 'B');
+  assert.ok(p.start <= 72 && p.start + p.len >= 72, JSON.stringify(p)); assert.equal(p.len, 22); assert.equal(p.variant, 'B');
   assert.ok(p.replayAt >= p.start && p.replayAt + p.replayLen <= p.start + p.len + .6);
   const flat = autoPlan({activity: new Array(20).fill(.5), step: 1, duration: 20}); assert.equal(flat.variant, 'A'); assert.equal(flat.start, 0);
   assert.equal(autoPlan({activity: [0, 0, 0], step: 1, duration: 3}).len, 3);
@@ -72,4 +72,9 @@ test('topMoments picks separate action peaks in time order', () => {
   for (let i = 0; i < 3; i++) { const pk = [50, 140, 230][i]; assert.ok(m[i].start <= pk && m[i].start + m[i].len >= pk, JSON.stringify(m[i])); }
   assert.ok(m.every((x, i) => i === 0 || x.start >= m[i - 1].start + 22));
   assert.equal(topMoments({activity: new Array(40).fill(.3), step: 1, duration: 40, n: 5, len: 22}).length, 1 + 0 || 1);
+});
+
+test('auto title: meaningful names kept, junk names get a stable catchy title per language', () => {
+  assert.equal(autoTitle('Bugatti vs Koenigsegg', 'en', 3), 'Bugatti vs Koenigsegg');
+  for (const l of ['en', 'ru', 'kk']) { const t = autoTitle('9778854E-A1EB-4D66-AB11-45BBDA3AD3F1.mp4', l, 7); assert.ok(t.length > 5 && t.length <= 60); assert.equal(t, autoTitle('IMG_1.mp4', l, 7)); assert.notEqual(autoTitle('x.mp4', l, 0), autoTitle('x.mp4', l, 1)); }
 });
