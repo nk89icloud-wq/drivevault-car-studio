@@ -4,7 +4,7 @@ import {loadCarPhoto} from './photos.js?v=30';
 import {initCalendar} from './calendar.js?v=30';
 import * as YT from './youtube.js?v=30';
 import {initTournament} from './tournament.js?v=30';
-import {initRemix} from './remix.js?v=5';
+import {initRemix} from './remix.js?v=6';
 
 const $ = id => document.getElementById(id);
 const TYPES = [...new Set(CARS.map(c => c.type))].sort();
