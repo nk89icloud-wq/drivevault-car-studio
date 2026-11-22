@@ -153,6 +153,7 @@
         <div class="rm-left">
           <label>Бейне сілтемесі (YouTube атауы мен авторын оқиды / Wikimedia / тікелей MP4)<input id="rmLink" type="url" placeholder="https://youtube.com/watch?v=…"></label>
           <label class="rm-file">Өңделетін түпнұсқа файлды таңдаңыз немесе осы жерге тастаңыз<input type="file" id="rmFile" accept="video/*"></label><small id="rmName" class="rm-name"></small>
+          <label>Бейне не туралы (GTA 6, Minecraft… — атауға және хэштегке қосылады; бос болса файл атауынан табады)<input id="rmTopic" maxlength="40" placeholder="мыс: GTA 6"></label>
           <label>Бейне атауы (автоматты жазылады, қаласаңыз өзгертіңіз)<input id="rmHookOver" maxlength="80" placeholder="мыс: НОВЫЙ GTA 6"></label>
           <label class="rm-file">Логотип (PNG, міндетті емес, шағын болып қойылады)<input type="file" id="rmLogo" accept="image/*"></label>
           <label class="rm-confirm"><input type="checkbox" id="rmConfirm"> Мен тек өзімнің / Creative Commons / рұқсаты бар бейнелерді қолданамын</label>
@@ -162,6 +163,7 @@
           <p class="rm-status" id="rmStatus"></p>
           <p id="rmYtStatus" class="yt-status"></p><div class="yt-bar" id="rmBar" hidden><i id="rmBarFill"></i></div>
           <details id="rmAdv" class="rm-adv"><summary>⚙ Қолмен баптау (міндетті емес)</summary>
+          <label class="rm-confirm"><input type="checkbox" id="rmFill" checked> Көлденең бейнені тік экранға толық толтыру (әрекетті автоматты бақылап отырады)</label>
             <div class="rm-variants">
               <label class="rm-var"><input type="radio" name="rmVar" value="A" checked><span><b>A · Түсініктемелі</b><i>Рамка, хук, субтитр</i></span></label>
               <label class="rm-var"><input type="radio" name="rmVar" value="B"><span><b>B · Фактілер + баяу қайталау</b><i>Карточкалар, 0.5× slow-mo</i></span></label>
@@ -208,6 +210,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer><a class="brand" href="#top"><span class="brand-mark">DV</span><span>DRIVE<span>VAULT</span></span></a><p>Көлік деректері демонстрациялық мақсатта берілген.</p><span>© 2026 DriveVault</span></footer>
-  <script type="module" src="app.js?v=38"></script>
+  <script type="module" src="app.js?v=41"></script>
 </body>
 </html>
