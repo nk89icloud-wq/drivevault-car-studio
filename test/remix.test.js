@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseCaptions, plan, preflight, buildMeta, classifyLink, cleanTitle, detectLang, autoCaps, autoPlan, topMoments, autoTitle, autoHook, MAX_TOTAL, OUTRO} from '../remix.js';
+import {parseCaptions, plan, preflight, buildMeta, classifyLink, cleanTitle, detectLang, autoCaps, autoPlan, topMoments, autoTitle, textLang, autoHook, MAX_TOTAL, OUTRO} from '../remix.js';
 
 test('captions: timed, untimed and mixed lines', () => {
   const t = parseCaptions('0:05 Hello\n12 World\n20 - Third', 30);
@@ -77,4 +77,11 @@ test('topMoments picks separate action peaks in time order', () => {
 test('auto title: meaningful names kept, junk names get a stable catchy title per language', () => {
   assert.equal(autoTitle('Bugatti vs Koenigsegg', 'en', 3), 'Bugatti vs Koenigsegg');
   for (const l of ['en', 'ru', 'kk']) { const t = autoTitle('9778854E-A1EB-4D66-AB11-45BBDA3AD3F1.mp4', l, 7); assert.ok(t.length > 5 && t.length <= 60); assert.equal(t, autoTitle('IMG_1.mp4', l, 7)); assert.notEqual(autoTitle('x.mp4', l, 0), autoTitle('x.mp4', l, 1)); }
+});
+
+test('bilingual titles and captions (EN + RU), rotating per seed', () => {
+  const t0 = autoTitle('IMG_1.mp4', 'bi', 0), t1 = autoTitle('IMG_1.mp4', 'bi', 1);
+  for (const t of [t0, t1]) { assert.ok(t.length <= 100); assert.match(t, /[a-z]/i); assert.match(t, /[а-яё]/i); }
+  assert.notEqual(t0, t1); assert.equal(textLang('Новый ГТА 6 - New GTA 6'), 'bi'); assert.equal(textLang('Қазақша test'), 'kk'); assert.equal(textLang('Cars'), 'en');
+  const rows = autoCaps('bi', 30, 12).split('\n'); assert.ok(rows.length >= 3); assert.ok(rows.every(r => /[a-z]/i.test(r) && /[а-яё]/i.test(r)));
 });
