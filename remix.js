@@ -1,3 +1,4 @@
+import {Muxer, ArrayBufferTarget} from './vendor/mp4-muxer.mjs';
 // Бейне өзгерту (Remix): пайдаланушы салған бейнені (өзінің / CC лицензиялы / рұқсаты бар) өңдеп, Shorts жасайды.
 // Екі нұсқа: A — түсініктемелі Shorts (хук + субтитр + дереккөз), B — факт-карточкалар + баяу қайталау (slow-mo replay).
 // Мақсат: түпнұсқаны жасыру емес, шынымен өзгертілген (transformative) жұмыс + дереккөзді көрсету.
@@ -387,6 +388,14 @@ export function initRemix({YT}) {
       s = {...s, start: 0, variant: 'A', replayAt: 0, replayLen: 0};
       P = {D: sourceDuration, rl: 0, slow: 0, total: sourceDuration};
     }
+    { const room = (video.duration || 0) - s.start; if (room > 0 && P.D > room) { const D = Math.max(1, room - .05); P = {...P, D, total: P.total - (P.D - D)}; } } // клип бастапқы бейнеден ұзақ болмасын
+    if (record) { // дәл кодтау: әр кадр нақты уақытпен, тұрақты 30 fps (YouTube-та қатып қалмайды)
+      const k0 = (kind === 'full' ? 'full' : 'short') + (s.q === '720' ? '720' : '1080'), [W0, H0, B0] = FMT[k0];
+      if (await exactOk(W0, H0, B0)) {
+        try { const out = await runExact(kind, s, P, caps, W0, H0, B0); busy = false; refresh(); if (!out) { status('Тоқтатылды.', true); return null; } return deliver([out], 'video/mp4', W0, H0, s, P, kind); }
+        catch (e) { console.warn('exact encode failed', e); status('Дәл кодтау орындалмады, қарапайым жазуға ауысамын…'); busy = false; }
+      }
+    }
     busy = true; refresh(); audioGraph(); await ac.resume(); monitor(!record); gain.gain.value = clamp(+$('rmVol').value / 100, 0, 1);
     const key = (kind === 'full' ? 'full' : 'short') + (s.q === '720' ? '720' : '1080'), [W, H, bps] = FMT[key]; let c = cv, g = ctx, recorder = null; const chunks = [];
     if (record) { c = document.createElement('canvas'); g = c.getContext('2d'); }
@@ -415,6 +424,50 @@ export function initRemix({YT}) {
     await new Promise(res => { recorder.onstop = res; try { recorder.state !== 'inactive' ? recorder.stop() : res(); } catch { res(); } });
     refresh(); if (!chunks.length) { status('Видео жазылмады', true); return null; }
     return deliver(chunks, recorder.mime, W, H, s, P, kind);
+  }
+
+  // ---- дәл (offline) кодтау: WebCodecs H.264 + AAC, әр кадр дәл уақыт белгісімен, тұрақты 30 fps, faststart MP4
+  const sleep = ms => new Promise(r => setTimeout(r, ms)), codecFor = (W, H) => W * H > 1280 * 720 ? 'avc1.640028' : 'avc1.64001f';
+  let exactCache = null, audioCache = {blob: null, buf: null};
+  async function exactOk(W, H, bps) {
+    if (!(window.VideoEncoder && window.AudioEncoder && window.VideoFrame && window.AudioData)) return false;
+    if (!srcBlob || srcBlob.size > 300 * 1048576 || video.duration > 900) return false; // ұзақ/үлкен көзде аудионы толық декодтау қиын → ескі жол
+    try { const key = `${W}x${H}`; if (exactCache?.key !== key) { const v = await VideoEncoder.isConfigSupported({codec: codecFor(W, H), width: W, height: H, bitrate: bps, framerate: 30}), a = await AudioEncoder.isConfigSupported({codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 128000}); exactCache = {key, ok: !!(v.supported && a.supported)}; } return exactCache.ok; } catch { return false; }
+  }
+  async function decodeSrcAudio() {
+    if (audioCache.blob === srcBlob) return audioCache.buf; let buf = null;
+    try { const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext; buf = await new AC(2, 48000, 48000).decodeAudioData(await srcBlob.arrayBuffer()); } catch { buf = null; } // дыбыссыз бейне
+    audioCache = {blob: srcBlob, buf}; return buf;
+  }
+  async function runExact(kind, s, P, caps, W, H, bps) {
+    const FPS = 30, N = Math.round(P.total * FPS), label = kind === 'full' ? 'толық видео' : 'Shorts', vol = clamp(+$('rmVol').value / 100, 0, 1), sr = 48000;
+    busy = true; refresh(); monitor(false);
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+    let err = null, muxer = new Muxer({target: new ArrayBufferTarget(), video: {codec: 'avc', width: W, height: H, frameRate: FPS}, audio: {codec: 'aac', sampleRate: sr, numberOfChannels: 2}, fastStart: 'in-memory', firstTimestampBehavior: 'offset'});
+    const ve = new VideoEncoder({output: (ch, m) => muxer.addVideoChunk(ch, m), error: e => { err = e; }}), ae = new AudioEncoder({output: (ch, m) => muxer.addAudioChunk(ch, m), error: e => { err = e; }});
+    ve.configure({codec: codecFor(W, H), width: W, height: H, bitrate: bps, framerate: FPS, latencyMode: 'quality', avc: {format: 'avc'}}); ae.configure({codec: 'mp4a.40.2', sampleRate: sr, numberOfChannels: 2, bitrate: 128000});
+    try {
+      // аудио: клип бөлігі, қалғаны (баяу қайталау, финал) — тыныштық
+      status(`🎞 ${label}: дыбыс дайындалуда…`);
+      const ab = await decodeSrcAudio(), total = Math.round(P.total * sr), L = new Float32Array(total), R = new Float32Array(total);
+      if (ab) { const a0 = Math.floor(s.start * ab.sampleRate), n = Math.min(Math.floor(P.D * sr), total, ab.length - a0), c0 = ab.getChannelData(0), c1 = ab.numberOfChannels > 1 ? ab.getChannelData(1) : c0, fade = Math.floor(.03 * sr);
+        for (let i = 0; i < n; i++) { const f = i > n - fade ? (n - i) / fade : 1; L[i] = c0[a0 + i] * vol * f; R[i] = c1[a0 + i] * vol * f; } }
+      for (let o = 0; o < total; o += 4800) { const n = Math.min(4800, total - o), buf = new Float32Array(n * 2); buf.set(L.subarray(o, o + n), 0); buf.set(R.subarray(o, o + n), n); const ad = new AudioData({format: 'f32-planar', sampleRate: sr, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(o / sr * 1e6), data: buf}); ae.encode(ad); ad.close(); }
+      const S = S0(s, P, caps), maxT = Math.max(0, (video.duration || 1) - .05), t0 = performance.now(); video.pause();
+      for (let i = 0; i < N && busy && !err; i++) {
+        const t = i / FPS;
+        if (t < P.D) { S.phase = 'clip'; S.tc = t; S.pt = t; await seek(Math.min(s.start + t, maxT)); }
+        else if (P.slow > 0 && t < P.D + P.slow) { const pt = t - P.D; S.phase = 'replay'; S.tc = P.D; S.pt = pt; S.rlWall = P.slow; await seek(Math.min((s.replayAt || s.start) + pt * SLOW, maxT)); }
+        else { S.phase = 'outro'; S.pt = t - P.D - (P.slow > 0 ? P.slow : 0); }
+        g.save(); drawRemix(g, W, H, S); g.restore();
+        const f = new VideoFrame(c, {timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS)}); ve.encode(f, {keyFrame: i % FPS === 0}); f.close();
+        while (ve.encodeQueueSize > 6 && !err) await sleep(4);
+        if (i % 10 === 0) { const el = (performance.now() - t0) / 1000, eta = i ? Math.round(el / i * (N - i)) : 0; status(`🎞 ${label} жасалуда: ${Math.round(i / N * 100)}%${eta ? ` (≈${eta} с қалды)` : ''}`); await sleep(0); }
+      }
+      if (!busy) { try { ve.close(); ae.close(); } catch { /* */ } return null; }
+      await ve.flush(); await ae.flush(); if (err) throw err; muxer.finalize();
+      const out = new Uint8Array(muxer.target.buffer); ve.close(); ae.close(); return out;
+    } catch (e) { try { ve.close(); ae.close(); } catch { /* */ } throw e; } finally { video.pause(); still(); }
   }
 
   async function deliver(chunks, mime, W, H, s, P, kind) {
