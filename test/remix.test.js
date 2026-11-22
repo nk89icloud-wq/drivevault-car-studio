@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseCaptions, plan, preflight, buildMeta, classifyLink, cleanTitle, detectLang, autoCaps, autoPlan, topMoments, autoTitle, textLang, autoHook, MAX_TOTAL, OUTRO} from '../remix.js';
+import {parseCaptions, plan, preflight, buildMeta, classifyLink, cleanTitle, detectLang, autoCaps, autoPlan, topMoments, autoTitle, textLang, detectTopic, ruTopic, autoHook, MAX_TOTAL, OUTRO} from '../remix.js';
 
 test('captions: timed, untimed and mixed lines', () => {
   const t = parseCaptions('0:05 Hello\n12 World\n20 - Third', 30);
@@ -84,4 +84,14 @@ test('bilingual titles and captions (EN + RU), rotating per seed', () => {
   for (const t of [t0, t1]) { assert.ok(t.length <= 100); assert.match(t, /[a-z]/i); assert.match(t, /[а-яё]/i); }
   assert.notEqual(t0, t1); assert.equal(textLang('Новый ГТА 6 - New GTA 6'), 'bi'); assert.equal(textLang('Қазақша test'), 'kk'); assert.equal(textLang('Cars'), 'en');
   const rows = autoCaps('bi', 30, 12).split('\n'); assert.ok(rows.length >= 3); assert.ok(rows.every(r => /[a-z]/i.test(r) && /[а-яё]/i.test(r)));
+});
+
+test('topic detection and topic-based bilingual titles', () => {
+  assert.equal(detectTopic('Новый ГТА 6 trailer'), 'GTA 6'); assert.equal(detectTopic('gta6 secret'), 'GTA 6'); assert.equal(detectTopic('GTA V stunts'), 'GTA 5'); assert.equal(detectTopic('gta online'), 'GTA'); assert.equal(detectTopic('Minecraft build'), 'Minecraft'); assert.equal(detectTopic('Bugatti'), ''); assert.equal(detectTopic('IMG_1'), '');
+  assert.equal(ruTopic('GTA 6'), 'ГТА 6');
+  const seen = new Set();
+  for (const kind of ['action', 'calm']) for (let i = 0; i < 5; i++) { const t = autoTitle('x.mp4', 'bi', i, {topic: 'GTA 6', kind}); seen.add(t); assert.ok(t.length <= 100); assert.match(t, /GTA 6/); assert.match(t, /ГТА 6/); }
+  assert.equal(seen.size, 10); assert.match(autoTitle('x.mp4', 'bi', 0, {topic: 'GTA 6', kind: 'calm'}), /Secret Place/);
+  assert.equal(autoTitle('GTA 6 Official Trailer', 'bi', 0, {topic: 'GTA 6'}), 'GTA 6');
+  assert.match(buildMeta({kind: 'short', hook: 'X', rights: 'own', topic: 'GTA 6'}), /#GTA6/);
 });
