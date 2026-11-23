@@ -93,7 +93,7 @@ export function drawRemix(ctx, W, H, S) {
   const t = S.phase === 'clip' ? S.tc : S.pt;
   ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, W, H);
   // Көлденең (немесе тым тар) бейне: бүкіл тік экранға толтырады, әрекетті бақылап отырады
-  const fill = S.fill !== false && (ar > 1.15 || ar < .8), replay = S.phase === 'replay';
+  const fill = S.fill !== false, replay = S.phase === 'replay';
   if (!fill) blurBg(ctx, W, H, v, t);
   // --- негізгі кадр (рамка ішінде)
   const maxW = W - 80 * u, maxH = H * (S.variant === 'B' ? .5 : .54);
